@@ -778,3 +778,106 @@ async function getIfAnimeExist(idanime) {
         document.getElementById('warninginlist').style.display = 'none';
     }
 }
+
+// Search view helpers
+function clearSearchResults(message = 'Commencez une recherche pour afficher les résultats.') {
+    const results = document.getElementById('searchResults');
+    const empty = document.getElementById('searchEmpty');
+    if (!results || !empty) return;
+    results.innerHTML = '';
+    empty.textContent = message;
+    empty.style.display = 'block';
+}
+
+function renderSearchResults(items) {
+    const results = document.getElementById('searchResults');
+    const empty = document.getElementById('searchEmpty');
+    if (!results || !empty) return;
+    results.innerHTML = '';
+    if (!items.length) {
+        empty.textContent = 'Aucun résultat trouvé.';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    items.forEach(item => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'search-result-item';
+        row.innerHTML = `
+            <div class="search-result-art">
+                <img src="${item.coverImage || 'https://via.placeholder.com/120x168?text=No+Image'}" alt="${item.title}" loading="lazy">
+            </div>
+            <div class="search-result-content">
+                <span class="search-result-title">${item.title || 'Titre inconnu'}</span>
+                <span class="search-result-subtitle">${item.subtitle || ''}</span>
+            </div>
+        `;
+        results.appendChild(row);
+    });
+}
+
+async function searchAnime(query) {
+    if (!query) {
+        clearSearchResults();
+        return;
+    }
+
+    const gql = `query ($search: String) {
+        Page(perPage: 12) {
+            media(search: $search, type: ANIME) {
+                id
+                title {
+                    romaji
+                    english
+                    native
+                }
+                coverImage {
+                    medium
+                    large
+                }
+                seasonYear
+                episodes
+            }
+        }
+    }`;
+
+    const variables = { search: query };
+
+    try {
+        const response = await fetch('https://graphql.anilist.co', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ query: gql, variables })
+        });
+        const data = await response.json();
+        const media = data?.data?.Page?.media || [];
+        const items = media.map(anime => ({
+            title: anime.title.english || anime.title.romaji || anime.title.native || 'Sans titre',
+            subtitle: anime.seasonYear ? `${anime.seasonYear} • ${anime.episodes || '?'} Ep` : `${anime.episodes || '?'} Ep`,
+            coverImage: anime.coverImage?.medium || anime.coverImage?.large || ''
+        }));
+        renderSearchResults(items);
+    } catch (err) {
+        console.error('Erreur recherche AniList :', err);
+        clearSearchResults('Erreur lors de la recherche. Réessayez.');
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchQuery');
+    if (!searchInput) return;
+
+    let searchTimeout = null;
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchAnime(searchInput.value.trim());
+        }, 300);
+    });
+});
+

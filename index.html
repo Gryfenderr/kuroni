@@ -33,9 +33,9 @@
         </div> -->
     </header>
 
-    <main id="">
+    <main id="appView">
 
-        <section id="gridAnime">
+        <section id="gridAnime" class="view-panel active">
             <div class="anime-card">
                 <img src="https://a.storyblok.com/f/178900/1064x1504/7a71ba6ea7/mushoku-tensei-jobless-reincarnation-season-3-key-visual.jpg/m/filters:quality(95)format(webp)" alt="">
 
@@ -49,6 +49,62 @@
             </div>
         </section>
 
+        <section id="searchView" class="view-panel">
+            <div class="search-panel">
+                <div class="search-bar">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="search" id="searchQuery" placeholder="Recherche d'anime..." autocomplete="off" spellcheck="false">
+                </div>
+                <div id="searchResults" class="search-results"></div>
+                <div id="searchEmpty" class="search-empty">Commencez une recherche pour afficher les résultats.</div>
+            </div>
+        </section>
+
+        <section id="settingsView" class="view-panel">
+            <div class="settings-card">
+                <div class="settings-profile">
+                    <div class="settings-avatar">
+                        <span class="material-symbols-rounded">person</span>
+                    </div>
+                    <div>
+                        <h2 id="settingsUsername">Utilisateur</h2>
+                        <p>Gère ton profil et tes préférences</p>
+                    </div>
+                </div>
+
+                <!-- <div class="settings-block">
+                    <h3>Profil</h3>
+                    <button type="button" class="settings-btn">
+                        <span class="material-symbols-rounded">edit</span>
+                        <span>Modifier mon profil</span>
+                    </button>
+                    <button type="button" class="settings-btn">
+                        <span class="material-symbols-rounded">notifications</span>
+                        <span>Notifications</span>
+                    </button>
+                </div> -->
+
+                <!-- <div class="settings-block">
+                    <h3>Liste</h3>
+                    <button type="button" class="settings-btn">
+                        <span class="material-symbols-rounded">sort</span>
+                        <span>Tri par défaut</span>
+                    </button>
+                    <button type="button" class="settings-btn">
+                        <span class="material-symbols-rounded">visibility</span>
+                        <span>Afficher les favoris</span>
+                    </button>
+                </div> -->
+
+                <div class="settings-block">
+                    <button type="button" class="settings-btn danger" onclick="sessionStorage.clear(); window.location.href='login.html';">
+                        <span class="material-symbols-rounded">logout</span>
+                        <span>Se déconnecter</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <div class="pull-refresh-hint" id="pullRefreshHint">
@@ -58,7 +114,7 @@
 
     <nav class="bottom-nav">
 
-        <button>
+        <button type="button" data-view="search">
             <span class="material-symbols-rounded">search</span>
         </button>
 
@@ -74,7 +130,7 @@
             <span class="material-symbols-rounded">schedule</span>
         </button>
 
-        <button>
+        <button type="button" data-view="settings" data-filter="settings">
             <span class="material-symbols-rounded">settings</span>
         </button>
 
@@ -211,9 +267,10 @@
 
         let timeout = null;
 
-        titreSearch.addEventListener('input', () => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => {
+        if (titreSearch) {
+            titreSearch.addEventListener('input', () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => {
                 const query = `
                 query ($search: String) {
                     Media(search: $search, type: ANIME) {
@@ -295,6 +352,7 @@
                 });
             }, 500); // délai pour éviter trop de requêtes
         });
+        }
     </script>
 
 
@@ -305,16 +363,138 @@
             return filter.split(',').map(s => s.trim()).filter(Boolean);
         }
 
+        let currentFilterValue = 'toview,next,waiting,dropped,restart,again';
+
         function setNavFilter(button, filter) {
             document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
+            currentFilterValue = filter;
             selectList(parseFilter(filter));
+        }
+
+        function showView(viewName) {
+            const gridPanel = document.getElementById('gridAnime');
+            const settingsPanel = document.getElementById('settingsView');
+            const searchPanel = document.getElementById('searchView');
+
+            document.querySelectorAll('.view-panel').forEach(panel => {
+                const isActive = panel.id === viewName;
+                panel.classList.toggle('active', isActive);
+                panel.hidden = !isActive;
+            });
+
+            if (gridPanel) {
+                gridPanel.style.display = viewName === 'gridAnime' ? '' : 'none';
+            }
+
+            if (settingsPanel) {
+                settingsPanel.style.display = viewName === 'settingsView' ? 'block' : 'none';
+            }
+
+            if (searchPanel) {
+                searchPanel.style.display = viewName === 'searchView' ? 'block' : 'none';
+            }
+
+            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
+
+            if (viewName === 'settingsView') {
+                const settingsButton = document.querySelector('.bottom-nav button[data-view="settings"]');
+                if (settingsButton) settingsButton.classList.add('active');
+            } else if (viewName === 'searchView') {
+                const searchButton = document.querySelector('.bottom-nav button[data-view="search"]');
+                if (searchButton) searchButton.classList.add('active');
+            } else {
+                const matchingButton = Array.from(document.querySelectorAll('.bottom-nav button[data-filter]'))
+                    .find(btn => btn.dataset.filter === currentFilterValue);
+                const fallbackButton = document.querySelector('.bottom-nav button[data-filter="toview,next,waiting,dropped,restart,again"]');
+                const buttonToActivate = matchingButton || fallbackButton;
+                if (buttonToActivate) buttonToActivate.classList.add('active');
+            }
+        }
+
+        function setSettingsView() {
+            const usernameEl = document.getElementById('settingsUsername');
+            if (usernameEl) {
+                usernameEl.textContent = sessionStorage.getItem('username') || 'Utilisateur';
+            }
+
+            document.querySelectorAll('.view-panel').forEach(panel => {
+                const isSettings = panel.id === 'settingsView';
+                panel.classList.toggle('active', isSettings);
+                panel.hidden = !isSettings;
+            });
+
+            const gridPanel = document.getElementById('gridAnime');
+            if (gridPanel) {
+                gridPanel.style.display = 'none';
+            }
+
+            const settingsPanel = document.getElementById('settingsView');
+            if (settingsPanel) {
+                settingsPanel.style.display = 'block';
+            }
+
+            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
+            const settingsButton = document.querySelector('.bottom-nav button[data-view="settings"]');
+            if (settingsButton) settingsButton.classList.add('active');
+        }
+
+        function setSearchView() {
+            const searchPanel = document.getElementById('searchView');
+            const gridPanel = document.getElementById('gridAnime');
+            const settingsPanel = document.getElementById('settingsView');
+            const searchInput = document.getElementById('searchQuery');
+
+            document.querySelectorAll('.view-panel').forEach(panel => {
+                const isSearch = panel.id === 'searchView';
+                panel.classList.toggle('active', isSearch);
+                panel.hidden = !isSearch;
+            });
+
+            if (gridPanel) {
+                gridPanel.style.display = 'none';
+            }
+            if (settingsPanel) {
+                settingsPanel.style.display = 'none';
+            }
+            if (searchPanel) {
+                searchPanel.style.display = 'block';
+            }
+
+            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
+            const searchButton = document.querySelector('.bottom-nav button[data-view="search"]');
+            if (searchButton) searchButton.classList.add('active');
+
+            if (searchInput) {
+                searchInput.focus();
+            }
+        }
+
+        function activateNavButton(button) {
+            if (!button) return;
+            if (button.dataset.view === 'settings') {
+                setSettingsView();
+                return;
+            }
+            if (button.dataset.view === 'search') {
+                setSearchView();
+                return;
+            }
+            showView('gridAnime');
+            setNavFilter(button, button.dataset.filter);
         }
 
         const navButtons = document.querySelectorAll('.bottom-nav button[data-filter]');
         navButtons.forEach(button => {
             button.addEventListener('click', function() {
-                setNavFilter(this, this.dataset.filter);
+                activateNavButton(this);
+            });
+        });
+
+        document.querySelectorAll('.bottom-nav button[data-view="settings"], .bottom-nav button[data-view="search"]').forEach(button => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                activateNavButton(this);
             });
         });
 
@@ -334,16 +514,21 @@
         let touchStartY = 0;
         let touchStartTime = 0;
 
+        function getNavButtons() {
+            return Array.from(document.querySelectorAll('.bottom-nav button[data-filter], .bottom-nav button[data-view]'));
+        }
+
         function getActiveFilterIndex() {
-            const buttons = Array.from(document.querySelectorAll('.bottom-nav button[data-filter]'));
+            const buttons = getNavButtons();
             return buttons.findIndex(btn => btn.classList.contains('active'));
         }
 
         function swipeToIndex(index) {
-            const buttons = Array.from(document.querySelectorAll('.bottom-nav button[data-filter]'));
-            if (index < 0 || index >= buttons.length) return;
-            const button = buttons[index];
-            button.click();
+            const buttons = getNavButtons();
+            if (!buttons.length) return;
+            const normalizedIndex = ((index % buttons.length) + buttons.length) % buttons.length;
+            const button = buttons[normalizedIndex];
+            if (button) button.click();
         }
 
         function handleSwipe(dx, dy, duration) {
@@ -356,14 +541,29 @@
             }
 
             if (absDx < 40 || absDx < absDy) return;
+
+            const settingsPanel = document.getElementById('settingsView');
+            const isSettingsActive = settingsPanel && settingsPanel.classList.contains('active');
+
+            if (isSettingsActive && dx < 0) {
+                const firstListButton = document.querySelector('.bottom-nav button[data-filter="toview,next,waiting,dropped,restart,again"]');
+                if (firstListButton) {
+                    showView('gridAnime');
+                    setNavFilter(firstListButton, firstListButton.dataset.filter);
+                }
+                return;
+            }
+
             const currentIndex = getActiveFilterIndex();
             if (currentIndex === -1) return;
+
             if (dx < 0) {
                 swipeToIndex(currentIndex + 1);
             } else {
                 swipeToIndex(currentIndex - 1);
             }
         }
+        window.handleSwipe = handleSwipe;
 
         const pullRefreshHint = document.getElementById('pullRefreshHint');
         const grid = document.getElementById('gridAnime');
@@ -374,7 +574,7 @@
         }
 
         if (swipeArea) {
-            swipeArea.addEventListener('touchstart', event => {
+            const handleTouchStart = event => {
                 if (event.touches.length !== 1) return;
                 touchStartX = event.touches[0].clientX;
                 touchStartY = event.touches[0].clientY;
@@ -382,9 +582,9 @@
                 if (pullRefreshHint) {
                     pullRefreshHint.classList.remove('active');
                 }
-            }, { passive: true });
+            };
 
-            swipeArea.addEventListener('touchmove', event => {
+            const handleTouchMove = event => {
                 if (event.touches.length !== 1) return;
                 const touch = event.touches[0];
                 const dx = touch.clientX - touchStartX;
@@ -394,9 +594,13 @@
                 } else if (pullRefreshHint) {
                     pullRefreshHint.classList.remove('active');
                 }
-            }, { passive: true });
 
-            swipeArea.addEventListener('touchend', event => {
+                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+                    event.preventDefault();
+                }
+            };
+
+            const handleTouchEnd = event => {
                 const touch = event.changedTouches[0];
                 const dx = touch.clientX - touchStartX;
                 const dy = touch.clientY - touchStartY;
@@ -411,7 +615,11 @@
                 if (pullRefreshHint) {
                     pullRefreshHint.classList.remove('active');
                 }
-            });
+            };
+
+            swipeArea.addEventListener('touchstart', handleTouchStart, { passive: true });
+            swipeArea.addEventListener('touchmove', handleTouchMove, { passive: false });
+            swipeArea.addEventListener('touchend', handleTouchEnd, { passive: true });
         }
     </script>
 
