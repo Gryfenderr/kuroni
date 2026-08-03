@@ -1,254 +1,105 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <link rel="stylesheet" href="styles/style.css">
-  <title>Kuroni</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-  <script src="scripts/script.js"></script>
-  <script>
-    if (sessionStorage.getItem("username") == null || sessionStorage.getItem("username") == "undefined") {
-        window.location = "login.html";
-    }
-  </script>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#121212">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="icon" href="icons/favicon.ico">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/card.css">
+    <title>Kuroni</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="scripts/script.js"></script>
+    <script>
+        if (sessionStorage.getItem("username") == null || sessionStorage.getItem("username") == "undefined") {
+            window.location = "login.html";
+        }
+    </script>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" href="icons/favicon.ico">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0">
 </head>
 <body>
-  <!-- Header stylisé -->
-  <header>
-    <h1 id="h1"></h1>
-    <script>
-        document.getElementById('h1').innerHTML = sessionStorage.getItem('username') + "'s Anime List";
-    </script>
-    <div id="comptes">
-        <h5 id="cptcurrent">0 En Cours</h5>
-        <h5 id="cptfinish">0/0 Terminés</h5>
-    </div>
-  </header>
 
+    <!-- Header stylisé -->
+    <header>
+        <!-- <h1 id="h1"></h1>
+        <script>
+            document.getElementById('h1').innerHTML = sessionStorage.getItem('username') + "'s Anime List";
+        </script>
+        <div id="comptes">
+            <h5 id="cptcurrent">0 En Cours</h5>
+            <h5 id="cptfinish">0/0 Terminés</h5>
+        </div> -->
+    </header>
 
-  <main>
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Image</th>
-            <th>
-                <span style="margin-left: 5%;">Nom</span>
-                <button class="sort-btn" id="sortAlpha" data-order="asc">
-                    A → Z
-                </button>
-            </th>
-            <th>Progression</th>
-            <th>
-                <span style="margin-left: 5%; margin-right: 5%;">Statut</span>
-                <div class="filter-menu">
-                    <button class="filter-btn" id="statusFilterBtn">▾</button>
-                    <div class="filter-dropdown" id="statusFilterDropdown">
-                        <div class="filter-order">
-                        <label>
-                            <input type="radio" name="statusOrder" value="asc" checked>
-                            Croissant ↑
-                        </label>
-                        <label>
-                            <input type="radio" name="statusOrder" value="desc">
-                            Décroissant ↓
-                        </label>
-                        </div>
-                        <hr>
-                        <div class="filter-options">
-                        <label><input type="checkbox" name="statusName" value="toview"> À Voir</label>
-                        <label><input type="checkbox" name="statusName" value="next"> Suivant</label>
-                        <label><input type="checkbox" name="statusName" value="watching"> En Cours</label>
-                        <label><input type="checkbox" name="statusName" value="finished"> Terminé</label>
-                        <label><input type="checkbox" name="statusName" value="waiting"> En attente</label>
-                        <label><input type="checkbox" name="statusName" value="dropped"> Abandonné</label>
-                        <label><input type="checkbox" name="statusName" value="restart"> Recommencer</label>
-                        <label><input type="checkbox" name="statusName" value="again"> À Revoir</label>
-                        </div>
-                    </div>
+    <main id="">
+
+        <section id="gridAnime">
+            <div class="anime-card">
+                <img src="https://a.storyblok.com/f/178900/1064x1504/7a71ba6ea7/mushoku-tensei-jobless-reincarnation-season-3-key-visual.jpg/m/filters:quality(95)format(webp)" alt="">
+
+                <div class="card-top">
+                    <span>4 S • 48 Ep</span>
                 </div>
-            </th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- exemples -->
-          <tr class="letter-separator">
-            <td colspan="5">D</td>
-        </tr>
-          <tr>
-            <td><img src="https://cdn.myanimelist.net/images/anime/5/17407.jpg" alt="Death Note"></td>
-            <td>Death Note</td>
-            <td>1 saison (37)</td>
-            <td class="status finished">Terminé</td>
-            <td>
-              <button class="next-ep" disabled>➡️</button>
-              <button class="edit">⚙️</button>
-            </td>
-          </tr>
-          <tr class="letter-separator">
-            <td colspan="5">N</td>
-          </tr>
-          <tr>
-            <td><img src="https://cdn.myanimelist.net/images/anime/10/47347.jpg" alt="Naruto Shippuden"></td>
-            <td>Naruto Shippuden</td>
-            <td>Saison 20 épisode 500</td>
-            <td class="status watching">En cours</td>
-            <td>
-              <button class="next-ep">➡️</button>
-              <button class="edit">⚙️</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </main>
 
-  <!-- Bouton flottant -->
-  <button class="fab" id="openForm">＋</button>
-  <button class="fab" id="LogOut" onclick="LogOut();" aria-label="Logout">
-    <svg xmlns="http://www.w3.org/2000/svg" 
-        width="24" height="24" viewBox="0 0 24 24" 
-        fill="none" stroke="white" stroke-width="2" 
-        stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <polyline points="16 17 21 12 16 7"/>
-        <line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  </button>
-
-    <!-- Formulaire flottant d'ajout -->
-    <div class="modal" id="animeForm">
-        <div class="modal-content wide">
-            <div style="position: relative;">
-                <h2 class="police">Ajouter un Anime</h2>
-                <label class="flag-checkbox-alt">
-                    <input type="checkbox" name="flag" id="flag" />
-                    <span class="flag-icon">⚑</span>
-                </label>
-                <label class="star-checkbox">
-                    <input type="checkbox" name="favorite" id="favorite" />
-                    <span class="star">★</span>
-                </label>
+                <div class="card-bottom">
+                    <h3>Mushoku Tensei</h3>
+                </div>
             </div>
-            <form class="form-two-col">
-                <!-- Colonne gauche (titres) -->
-                <div class="form-col left">
-                    <div class="form-group">
-                        <label>Rechercher</label>
-                        <input type="text" id="titreSearch" placeholder="Rechercher">
-                    </div>
-                    <div class="form-group" style="margin-top: -5%; margin-left: 20%; color: yellow; display: none;" id="warninginlist">
-                        <p>Cet anime est déjà dans la liste</p>
-                    </div>
-                    <div class="form-group">
-                        <input type="hidden" id="imgURL" name="imgURL">
-                        <div style="margin-top:10px; text-align:center;">
-                            <img src="" id="previewImg" alt="Preview" style="zoom: 1000%; max-width:100%; border-radius:8px; display:none;">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Nom (Kanji)</label>
-                        <input type="text" id="titrenatif" placeholder="Nom Natif">
-                    </div>
-                    <div class="form-group">
-                        <label>Nom (Romaji)</label>
-                        <input type="text" id="titrermji" placeholder="Nom Romaji">
-                    </div>
-                    <div class="form-group">
-                        <label>Nom (EN)</label>
-                        <input type="text" id="titreen" placeholder="Nom Anglais">
-                    </div>
-                    <!-- <div class="form-group">
-                        <label>Nom (FR)</label>
-                        <input type="text" placeholder="Nom français">
-                    </div> -->
-                </div>
+        </section>
 
-                <!-- Colonne droite (infos + saisons dynamiques) -->
-                <div class="form-col right">
-                    <div class="form-group">
-                    <label>Langue préférée</label>
-                    <select id="languepref">
-                        <option value="EN" selected>Anglais</option>
-                        <option value="NA">Natif</option>
-                        <!-- <option value="FR">Français</option> -->
-                    </select>
-                    </div>
+    </main>
 
-                    <div class="form-group">
-                    <label>Statut</label>
-                    <select id="statut" onchange="StatutChange(this.value);">
-                        <option value="toview" selected>À voir</option>
-                        <option value="next">Suivant</option>
-                        <option value="watching">En cours</option>
-                        <option value="finished">Terminé</option>
-                        <option value="waiting">En attente</option>
-                        <option value="dropped">Abandonné</option>
-                        <option value="restart">Recommencer</option>
-                        <option value="again">À Revoir</option>
-                    </select>
-                    </div>
+    <div class="pull-refresh-hint" id="pullRefreshHint">
+        <span class="material-symbols-rounded">refresh</span>
+        <span>Glisser vers le bas pour recharger</span>
+    </div>
 
-                    <div class="form-group-currentvalues" id="currentsvalues">
-                        <div>
-                            <label>Saison en cours</label>
-                            <input type="number" id="currentseason" min="1" value="">
-                        </div>
-                        <div>
-                            <label>Épisode en cours</label>
-                            <input type="number" id="currentep" min="1" value="">
-                        </div>
-                    </div>
+    <nav class="bottom-nav">
 
-                    <div class="form-group">
-                        <!-- Switch -->
-                        <label class="switch">
-                            <input type="checkbox" id="checkboxsf" onchange="sfChange();">
-                            <span class="slider"></span>
-                            <span class="labels" data-off="Série" data-on="Film"></span>
-                        </label>
-                    </div>
+        <button>
+            <span class="material-symbols-rounded">search</span>
+        </button>
 
-                    <div class="form-group form-group-duree" id="divduree">
-                        <label>Durée</label>
-                        <input type="time" id="duree" min="0" value="00:00">
-                    </div>
+        <button data-filter="finished">
+            <span class="material-symbols-rounded">check_circle</span>
+        </button>
 
-                    <div class="form-group" id="divnbsaison">
-                        <label>Nombre de saisons</label>
-                        <input type="number" id="seasonCount" min="1" value="">
-                    </div>
+        <button class="active" data-filter="toview,next,waiting,dropped,restart,again">
+            <span class="material-symbols-rounded">favorite</span>
+        </button>
 
-                    <!-- Ici seront générés dynamiquement les inputs -->
-                    <div class="form-group" id="seasonInputs">
-                        <!-- <label>Épisodes / saisons</label> -->
-                        <!-- <div class="season-line">
-                            <span>Saison 1 :</span>
-                            <input type="number" min="1" value="">
-                        </div> -->
-                    </div>
-                </div>
-            </form>
+        <button data-filter="watching">
+            <span class="material-symbols-rounded">schedule</span>
+        </button>
 
-            <div class="form-actions">
-                <button type="button" class="cancel">Annuler</button>
-                <button type="submit" id="addanime" onclick="addBtnClick();" class="add">Ajouter</button>
+        <button>
+            <span class="material-symbols-rounded">settings</span>
+        </button>
+
+    </nav>
+
+    <div id="cardInfoOverlay" class="card-info-overlay hidden" onclick="if(event.target === this) hideCardInfo();">
+        <div class="card-info-panel">
+            <button type="button" class="card-info-close" onclick="hideCardInfo();">×</button>
+            <div class="card-info-image"><img src="" alt=""></div>
+            <div class="card-info-header">
+                <h2></h2>
+                <div class="card-info-status"></div>
+            </div>
+            <div class="card-info-details"></div>
+            <div class="card-info-footer">
+                <button type="button" class="card-info-edit-btn" onclick="openEditFromCardInfo();">Modifier</button>
             </div>
         </div>
-    </div>  
+    </div>
 
-
-    <!-- Formulaire flottant de modif -->
     <div class="modal" id="animeForm-edit">
         <div class="modal-content wide">
-            <div style="position: relative;">
-                <h2 class="police">Modifier</h2>
+            <button type="button" class="modal-close" onclick="closeEditModal();">×</button>
+            <div style="position: relative; margin-bottom: 16px;">
+                <h2 class="police">Modifier la carte</h2>
                 <label class="flag-checkbox-alt">
                     <input type="checkbox" name="flag-edit" id="flag-edit" />
                     <span class="flag-icon">⚑</span>
@@ -258,14 +109,13 @@
                     <span class="star">★</span>
                 </label>
             </div>
-            <form class="form-two-col">
-            <!-- Colonne gauche (titres) -->
+            <form class="form-two-col" onsubmit="event.preventDefault(); editBtnClick();">
                 <div class="form-col left">
                     <div class="form-group">
                         <input type="hidden" id="imgURL-edit" name="imgURL">
                         <input type="hidden" id="rowid" name="rowid">
                         <div style="margin-top:10px; text-align:center;">
-                            <img src="" id="previewImg-edit" alt="Preview" style="zoom: 1000%; max-width:100%; border-radius:8px; display:none;">
+                            <img src="" id="previewImg-edit" alt="Preview" style="width:100%; border-radius:12px; display:none;">
                         </div>
                     </div>
                     <div class="form-group">
@@ -280,37 +130,28 @@
                         <label>Nom (EN)</label>
                         <input type="text" id="titreen-edit" placeholder="Nom Anglais">
                     </div>
-                    <!-- <div class="form-group">
-                        <label>Nom (FR)</label>
-                        <input type="text" placeholder="Nom français">
-                    </div> -->
                 </div>
-
-                <!-- Colonne droite (infos + saisons dynamiques) -->
                 <div class="form-col right">
                     <div class="form-group">
-                    <label>Langue préférée</label>
-                    <select id="languepref-edit">
-                        <option value="EN" selected>Anglais</option>
-                        <option value="NA">Natif</option>
-                        <!-- <option value="FR">Français</option> -->
-                    </select>
+                        <label>Langue préférée</label>
+                        <select id="languepref-edit">
+                            <option value="EN">Anglais</option>
+                            <option value="NA">Natif</option>
+                        </select>
                     </div>
-
                     <div class="form-group">
-                    <label>Statut</label>
-                    <select id="statut-edit" onchange="StatutChange2(this.value);">
-                        <option value="toview" selected>À voir</option>
-                        <option value="next">Suivant</option>
-                        <option value="watching">En cours</option>
-                        <option value="finished">Terminé</option>
-                        <option value="waiting">En attente</option>
-                        <option value="dropped">Abandonné</option>
-                        <option value="restart">Recommencer</option>
-                        <option value="again">À Revoir</option>
-                    </select>
+                        <label>Statut</label>
+                        <select id="statut-edit" onchange="StatutChange2(this.value);">
+                            <option value="toview">À voir</option>
+                            <option value="next">Suivant</option>
+                            <option value="watching">En cours</option>
+                            <option value="finished">Terminé</option>
+                            <option value="waiting">En attente</option>
+                            <option value="dropped">Abandonné</option>
+                            <option value="restart">Recommencer</option>
+                            <option value="again">À revoir</option>
+                        </select>
                     </div>
-
                     <div class="form-group-currentvalues" id="currentsvalues-edit">
                         <div>
                             <label>Saison en cours</label>
@@ -321,579 +162,259 @@
                             <input type="number" id="currentep-edit" min="1" value="">
                         </div>
                     </div>
-
                     <div class="form-group">
-                        <!-- Switch -->
                         <label class="switch">
-                            <input type="checkbox" id="checkboxsf-edit" onchange="sfChange();">
+                            <input type="checkbox" id="checkboxsf-edit" onchange="sfChange('-edit');">
                             <span class="slider"></span>
                             <span class="labels" data-off="Série" data-on="Film"></span>
                         </label>
                     </div>
-
                     <div class="form-group form-group-duree" id="divduree-edit">
                         <label>Durée</label>
                         <input type="time" id="duree-edit" min="0" value="00:00">
                     </div>
-
                     <div class="form-group" id="divnbsaison-edit">
                         <label>Nombre de saisons</label>
-                        <input type="number" id="seasonCount-edit" min="1" value="">
+                        <input type="number" id="seasonCount-edit" min="1" value="" onchange="updateSeasonInputs2();">
                     </div>
-
-                    <!-- Ici seront générés dynamiquement les inputs -->
-                    <div class="form-group" id="seasonInputs-edit">
-                        <!-- <label>Épisodes / saisons</label> -->
-                        <!-- <div class="season-line">
-                            <span>Saison 1 :</span>
-                            <input type="number" min="1" value="">
-                        </div> -->
-                    </div>
+                    <div class="form-group" id="seasonInputs-edit"></div>
                 </div>
             </form>
-
             <div class="form-actions">
                 <button type="button" class="delete" onclick="delBtnClick();">Supprimer</button>
-                <button type="button" class="cancel cancel2">Annuler</button>
-                <button type="submit" id="editanime" onclick="editBtnClick();" class="add">Modifier</button>
+                <button type="button" class="cancel" onclick="closeEditModal();">Annuler</button>
+                <button type="button" id="editanime" class="add" onclick="editBtnClick();">Modifier</button>
             </div>
         </div>
-    </div>  
-
-    <!-- Lightbox -->
-    <div id="lightbox" class="lightbox" onclick="this.classList.remove('open')">
-        <img id="lightboxImg" src="" alt="zoom">
     </div>
 
+    <!-- Références Supabases -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        const supabaseUrl = 'https://fwdqeibadcyxcvdcuqjt.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3ZHFlaWJhZGN5eGN2ZGN1cWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1MjU0ODIsImV4cCI6MjA3MTEwMTQ4Mn0.CAUlJIATUnRTsYig4THdEZiwBXS72CJxDCO-oBqj-pQ';
+        const Supabase = supabase.createClient(supabaseUrl, supabaseKey);
+    </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-<!-- Références Supabases -->
-<script>
-  const supabaseUrl = 'https://fwdqeibadcyxcvdcuqjt.supabase.co';
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3ZHFlaWJhZGN5eGN2ZGN1cWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1MjU0ODIsImV4cCI6MjA3MTEwMTQ4Mn0.CAUlJIATUnRTsYig4THdEZiwBXS72CJxDCO-oBqj-pQ';
-  const Supabase = supabase.createClient(supabaseUrl, supabaseKey);
-</script>
+    <!-- API -->
+    <script>
+        const titreSearch = document.getElementById('titreSearch');
+        const imgPreview = document.getElementById('previewImg');
+        const imgURL = document.getElementById('imgURL');
+        const titrenatif = document.getElementById('titrenatif');
+        const titrermji = document.getElementById('titrermji');
+        const titreen = document.getElementById('titreen');
+        const checkboxsf = document.getElementById('checkboxsf');
+        let idanime = "";
 
-<!-- removeModal & Gestion dynamique des saisons -->
-<script>
-  const openBtn = document.getElementById("openForm");
-  const modal = document.getElementById("animeForm");
-  const modal2 = document.getElementById("animeForm-edit");
-  const cancelBtn = document.querySelector(".cancel");
-  const cancelBtn2 = document.querySelector(".cancel2");
+        let timeout = null;
 
-  openBtn.onclick = () => modal.classList.add("show");
-  cancelBtn.onclick = () => removeModal();
-
-  cancelBtn2.onclick = () => removeModal2();
-
-  function removeModal(){
-    modal.classList.remove("show");
-    clearModal();
-  }
-
-  function removeModal2(){
-    modal2.classList.remove("show");
-    // clearModal2();
-  }
-
-  // --- Gestion dynamique des saisons ---
-  const seasonCountInput = document.getElementById("seasonCount");
-  const seasonInputsDiv = document.getElementById("seasonInputs");
-
-  function updateSeasonInputs() {
-    const count = parseInt(seasonCountInput.value) || 0;
-    seasonInputsDiv.innerHTML = "";
-
-    if (count > 0) {
-        seasonInputsDiv.innerHTML = "<label>Épisodes / saisons</label>";
-        for (let i = 1; i <= count; i++) {
-        const div = document.createElement("div");
-        div.classList.add("season-line");
-        div.innerHTML = `
-            <span>Saison ${i} :</span>
-            <input type="number" min="1" value="">
-        `;
-        seasonInputsDiv.appendChild(div);
-        }
-    }
-  }
-  seasonCountInput.addEventListener("input", updateSeasonInputs);
-  
-  // --- Gestion dynamique des saisons ---
-  const seasonCountInput2 = document.getElementById("seasonCount-edit");
-  const seasonInputsDiv2 = document.getElementById("seasonInputs-edit");
-
-  function updateSeasonInputs2() {
-    const count = parseInt(seasonCountInput2.value) || 0;
-    seasonInputsDiv2.innerHTML = "";
-
-    if (count > 0) {
-        seasonInputsDiv2.innerHTML = "<label>Épisodes / saisons</label>";
-        for (let i = 1; i <= count; i++) {
-        const div = document.createElement("div");
-        div.classList.add("season-line");
-        div.innerHTML = `
-            <span>Saison ${i} :</span>
-            <input type="number" min="1" value="">
-        `;
-        seasonInputsDiv2.appendChild(div);
-        }
-    }
-  }
-  seasonCountInput2.addEventListener("input", updateSeasonInputs2);
-</script>
-
-<!-- API -->
-<script>
-    const titreSearch = document.getElementById('titreSearch');
-    const imgPreview = document.getElementById('previewImg');
-    const imgURL = document.getElementById('imgURL');
-    const titrenatif = document.getElementById('titrenatif');
-    const titrermji = document.getElementById('titrermji');
-    const titreen = document.getElementById('titreen');
-    const checkboxsf = document.getElementById('checkboxsf');
-    let idanime = "";
-
-    let timeout = null;
-
-    titreSearch.addEventListener('input', () => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
-            const query = `
-            query ($search: String) {
-                Media(search: $search, type: ANIME) {
-                    id
-                    title {
-                        romaji
-                        english
-                        native
+        titreSearch.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                const query = `
+                query ($search: String) {
+                    Media(search: $search, type: ANIME) {
+                        id
+                        title {
+                            romaji
+                            english
+                            native
+                        }
+                        coverImage {
+                            large
+                        }
+                        description
                     }
-                    coverImage {
-                        large
-                    }
-                    description
-                }
-            }`;
-            const variables = {
-            search: titreSearch.value.trim()
-            };
+                }`;
+                const variables = {
+                search: titreSearch.value.trim()
+                };
 
-            fetch('https://graphql.anilist.co', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    query: query,
-                    variables: variables
+                fetch('https://graphql.anilist.co', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        variables: variables
+                    })
                 })
-            })
-            .then(res => res.json())
-            .then(data => {
-                // Traitement des données reçues
-                if (data.data && data.data.Media) {
-                    const anime = data.data.Media;
-                    // Vous pouvez maintenant utiliser les informations de l'anime
-                    // Par exemple, afficher l'image et le titre
-                    if (anime.coverImage && anime.coverImage.large) {
-                        imgPreview.src = anime.coverImage.large;
-                        imgURL.value = anime.coverImage.large;
-                        console.log(imgURL.value);
-                        imgPreview.style.display = 'block';
-                        titrenatif.value = anime.title.native;
-                        titrermji.value = anime.title.romaji;
-                        titreen.value = anime.title.english;
-                        idanime = String(anime.id);
-                        if (anime.title.english == null) {
-                            document.getElementById('languepref').value = 'NA';
+                .then(res => res.json())
+                .then(data => {
+                    // Traitement des données reçues
+                    if (data.data && data.data.Media) {
+                        const anime = data.data.Media;
+                        // Vous pouvez maintenant utiliser les informations de l'anime
+                        // Par exemple, afficher l'image et le titre
+                        if (anime.coverImage && anime.coverImage.large) {
+                            imgPreview.src = anime.coverImage.large;
+                            imgURL.value = anime.coverImage.large;
+                            console.log(imgURL.value);
+                            imgPreview.style.display = 'block';
+                            titrenatif.value = anime.title.native;
+                            titrermji.value = anime.title.romaji;
+                            titreen.value = anime.title.english;
+                            idanime = String(anime.id);
+                            if (anime.title.english == null) {
+                                document.getElementById('languepref').value = 'NA';
+                            }
+                            else{
+                                document.getElementById('languepref').value = 'EN';
+                            }
+                            getIfAnimeExist(idanime);
+                        } else {
+                            imgPreview.style.display = 'none';
+                            titrenatif.value = "";
+                            titrermji.value = "";
+                            titreen.value = "";
+                            getIfAnimeExist(0);
                         }
-                        else{
-                            document.getElementById('languepref').value = 'EN';
-                        }
-                        getIfAnimeExist(idanime);
+
                     } else {
                         imgPreview.style.display = 'none';
+                        imgURL.value = '';
                         titrenatif.value = "";
                         titrermji.value = "";
                         titreen.value = "";
                         getIfAnimeExist(0);
                     }
-
-                } else {
+                })
+                .catch(err => {
+                    console.error('Erreur lors de l\'appel à l\'API AniList:', err);
                     imgPreview.style.display = 'none';
                     imgURL.value = '';
                     titrenatif.value = "";
                     titrermji.value = "";
                     titreen.value = "";
                     getIfAnimeExist(0);
-                }
-            })
-            .catch(err => {
-                console.error('Erreur lors de l\'appel à l\'API AniList:', err);
-                imgPreview.style.display = 'none';
-                imgURL.value = '';
-                titrenatif.value = "";
-                titrermji.value = "";
-                titreen.value = "";
-                getIfAnimeExist(0);
-            });
-        }, 500); // délai pour éviter trop de requêtes
-    });
-</script>
-
-<!-- addBtnClick -->
-<script>
-    function addBtnClick () {
-        let urlimg = document.getElementById('imgURL').value;
-        let nomnative = document.getElementById('titrenatif').value;
-        let nomromaji = document.getElementById('titrermji').value;
-        let nomenglish = document.getElementById('titreen').value;
-        let languepref = document.getElementById('languepref').value;
-        let statut = document.getElementById('statut').value;
-        let nbsaisons = document.getElementById('seasonCount').value;
-        let saisonencours = document.getElementById('currentseason').value;
-        let epencours = document.getElementById('currentep').value;
-        let checkboxsf = document.getElementById('checkboxsf').checked;
-        let duree = document.getElementById('duree').value;
-        const divs = document.querySelectorAll('.season-line');
-        const champ_favori = document.getElementById('favorite');
-        const champ_flag = document.getElementById('flag');
-        
-        let favori = 0;
-        if (champ_favori.checked == true) {
-            favori = 1;
-        }
-        
-        let flag = 0;
-        if (champ_flag.checked == true) {
-            flag = 1;
-        }
-
-        let listep = [];
-        let detailsepsaison = "";
-
-        divs.forEach(div => {
-            const input = div.querySelector('input');
-            
-            const valeurInput = input.value;
-            
-            listep.push(valeurInput);
-
-            if (detailsepsaison != "") {
-                detailsepsaison += ",";
-            }
-            detailsepsaison += String(valeurInput);
-
-            input.value = 0;
-        });
-
-        let count = 0;
-        for (let i = 0; i < listep.length; i++) {
-            count += parseInt(listep[i]);
-        }
-
-        let nbepisodes = count;
-
-
-        if (saisonencours == "") {
-            saisonencours = 1;
-        }
-        if (epencours == "") {
-            epencours = 1;
-        }
-
-        // console.log("idanime : " + idanime);
-        // console.log("urlimg : " + urlimg); 
-        // console.log("nomnative : " + nomnative); 
-        // console.log("nomromaji : " + nomromaji); 
-        // console.log("nomenglish : " + nomenglish); 
-        // console.log("languepref : " + languepref); 
-        // console.log("statut : " + statut); 
-        // console.log("nbsaisons : " + nbsaisons); 
-        // console.log("detailsepsaison : " + detailsepsaison); 
-        // console.log("nbepisodes : " + nbepisodes);
-        // console.log("saisonencours : " + saisonencours);
-        // console.log("epencours : " + epencours);
-        // console.log("checkboxsf : " + checkboxsf);
-        // console.log("duree : " + duree);
-
-        addAnime(idanime, urlimg, nomnative, nomromaji, nomenglish, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepsaison, checkboxsf, duree, favori, flag);
-
-        console.log(detailsepsaison);
-
-        
-        modal.classList.remove("show")
-        
-        let seasonInputs = document.getElementById('seasonInputs');
-        seasonInputs.innerHTML = '';
-        updateSeasonInputs();
-
-        let timeoutTable = null;
-        clearTimeout(timeoutTable);
-        timeoutTable = setTimeout(() => {
-            clearModal();
-            sfChange();
-        }, 500);
-    };
-</script>
-
-<!-- editBtnClick & delBtnClick -->
-<script>
-    function editBtnClick() {
-        let rowid = document.getElementById('rowid').value;
-        let urlimg = document.getElementById('imgURL-edit').value;
-        let nomnative = document.getElementById('titrenatif-edit').value;
-        let nomromaji = document.getElementById('titrermji-edit').value;
-        let nomenglish = document.getElementById('titreen-edit').value;
-        let languepref = document.getElementById('languepref-edit').value;
-        let statut = document.getElementById('statut-edit').value;
-        let nbsaisons = document.getElementById('seasonCount-edit').value;
-        let saisonencours = document.getElementById('currentseason-edit').value;
-        let epencours = document.getElementById('currentep-edit').value;
-        let checkboxsf = document.getElementById('checkboxsf-edit').checked;
-        let duree = document.getElementById('duree-edit').value;
-        const divs = document.querySelectorAll('.season-line');
-        const champ_favori = document.getElementById('favorite-edit');
-        const champ_flag = document.getElementById('flag-edit');
-        
-        let favori = 0;
-        if (champ_favori.checked == true) {
-            favori = 1;
-        }
-        
-        let flag = 0;
-        if (champ_flag.checked == true) {
-            flag = 1;
-        }
-
-
-        let listep = [];
-        let detailsepsaison = "";
-
-        divs.forEach(div => {
-            const input = div.querySelector('input');
-            
-            const valeurInput = input.value;
-            
-            listep.push(valeurInput);
-
-            if (detailsepsaison != "") {
-                detailsepsaison += ",";
-            }
-            detailsepsaison += String(valeurInput);
-        });
-
-        let count = 0;
-        for (let i = 0; i < listep.length; i++) {
-            count += parseInt(listep[i]);
-        }
-
-        let nbepisodes = count;
-
-
-        if (saisonencours == "") {
-            saisonencours = 1;
-        }
-        if (epencours == "") {
-            epencours = 1;
-        }
-        
-        updaterow(rowid, nomnative, nomromaji, nomenglish, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepsaison, checkboxsf, duree, favori, flag)
-
-        modal2.classList.remove("show")
-
-        let timeoutTable = null;
-        clearTimeout(timeoutTable);
-        timeoutTable = setTimeout(() => {
-            selectList();
-            clearModal2();
-            sfChange();
-        }, 500);
-    }
-
-    function delBtnClick() {
-        let nomromaji = document.getElementById('titrermji-edit').value;
-        let nomenglish = document.getElementById('titreen-edit').value;
-        let languepref = document.getElementById('languepref-edit').value;
-        let rowid = document.getElementById('rowid').value;
-
-        let nomanime = nomenglish;
-        if (languepref == 'NA') {
-            nomanime = nomromaji;
-        }
-        if (confirm('Supprimer ' + nomanime + ' ?')) {
-            deleteRow(rowid);
-            modal2.classList.remove("show")
-
-            let timeoutTable = null;
-            clearTimeout(timeoutTable);
-            timeoutTable = setTimeout(() => {
-                selectList();
-                clearModal2();
-                sfChange();
-            }, 500);
-        }
-    }
-</script>
-
-<!-- LogOut & StatutChange & sfChange  -->
-<script>
-    function LogOut() {
-        sessionStorage.clear();
-        window.location = "login.html";
-    }
-
-    function StatutChange(newval) {
-        if (newval == "watching" || newval == "waiting" || newval == "dropped") {
-            document.getElementById('currentsvalues').style.display = 'flex';
-        } else {
-            document.getElementById('currentsvalues').style.display = 'none';
-            document.getElementById('currentseason').value = null;
-            document.getElementById('currentep').value = null;
-        }
-    }
-
-    function StatutChange2(newval) {
-        if (newval == "watching" || newval == "waiting" || newval == "dropped") {
-            document.getElementById('currentsvalues-edit').style.display = 'flex';
-        } else {
-            document.getElementById('currentsvalues-edit').style.display = 'none';
-            document.getElementById('currentseason-edit').value = null;
-            document.getElementById('currentep-edit').value = null;
-        }
-    }
-
-    function sfChange() {
-        if (document.getElementById('checkboxsf').checked) {
-            document.getElementById('divduree').style.display = 'flex';
-            document.getElementById('divnbsaison').style.display = 'none';
-            document.getElementById('seasonCount').value = "";
-            updateSeasonInputs()
-        }
-        else{
-            document.getElementById('divduree').style.display = 'none';
-            document.getElementById('divnbsaison').style.display = 'flex';
-        }
-
-        if (document.getElementById('checkboxsf-edit').checked) {
-            document.getElementById('divduree-edit').style.display = 'flex';
-            document.getElementById('divnbsaison-edit').style.display = 'none';
-            document.getElementById('seasonCount-edit').value = 0;
-            updateSeasonInputs2()
-            document.getElementById('seasonCount-edit').value = '';
-        }
-        else{
-            document.getElementById('divduree-edit').style.display = 'none';
-            document.getElementById('divnbsaison-edit').style.display = 'flex';
-        }
-    }
-</script>
-
-<!-- selectList & printCounts -->
-<script>
-    selectList();
-    printCounts();
-</script>
-
-<!-- Zoom image -->
-<script>
-// Zoom image
-function zoomimg() {
-    let timeoutZoom = null;
-    clearTimeout(timeoutZoom);
-    timeoutZoom = setTimeout(() => {
-        (function(){
-            // console.log(document.getElementById('lightbox'));
-            // console.log(document.getElementById('lightboxImg'));
-            // console.log(document.querySelectorAll('.zoomable'));
-            const lb=document.getElementById('lightbox'), img=document.getElementById('lightboxImg');
-            document.querySelectorAll('.zoomable').forEach(z=>{
-                z.addEventListener('click', (e)=>{
-                    e.preventDefault();
-                    img.src = z.getAttribute('src');
-                    lb.classList.add('open');
                 });
-            });
-        })();
-    }, 1500);
-}
-zoomimg();
-</script>
-
-<!-- Sort Alpha -->
-<script>
-    document.getElementById("sortAlpha").addEventListener("click", function() {
-    let order = this.getAttribute("data-order");
-
-    if(order === "asc") {
-        this.setAttribute("data-order", "desc");
-        this.textContent = "Z → A";
-        // appel tri décroissant ici
-        selectList('nompref', false);
-        zoomimg();
-    } else {
-        this.setAttribute("data-order", "asc");
-        this.textContent = "A → Z";
-        // appel tri croissant ici
-        selectList('nompref', true);
-        zoomimg();
-    }
-    });
+            }, 500); // délai pour éviter trop de requêtes
+        });
+    </script>
 
 
-</script>
-
-<!-- Sort status -->
-<script>
-    const filterBtn = document.getElementById("statusFilterBtn");
-    const filterDropdown = document.getElementById("statusFilterDropdown");
-
-    filterBtn.addEventListener("click", () => {
-    filterDropdown.style.display = 
-        filterDropdown.style.display === "block" ? "none" : "block";
-    });
-
-    // Fermer si clic à l’extérieur
-    document.addEventListener("click", (e) => {
-    if (!filterBtn.contains(e.target) && !filterDropdown.contains(e.target)) {
-        filterDropdown.style.display = "none";
-    }
-    });
-
-    // Exemple récupération
-    // function getStatusFilters() {
-    // const order = document.querySelector('input[name="statusOrder"]:checked').value;
-    // const statuses = [...document.querySelectorAll('.filter-options input:checked')].map(cb => cb.value);
-    // return { order, statuses };
-    // }
-
-
-    let selectedStatuses = [];
-    function handleFilterChange() {
-        // 1. Récup tri asc/desc
-        const orderRadio = document.querySelector('input[name="statusOrder"]:checked');
-        if (orderRadio) {
-            asc = orderRadio.value === "asc"; 
-            // ⚠️ ici, mets "asc"/"desc" dans tes <input value="">
+    <!-- selectList & printCounts -->
+    <script>
+        function parseFilter(filter) {
+            if (!filter) return [];
+            return filter.split(',').map(s => s.trim()).filter(Boolean);
         }
 
-        // 2. Récup statuts cochés
-        selectedStatuses = Array.from(
-            document.querySelectorAll('input[name="statusName"]:checked')
-        ).map(el => el.value);
+        function setNavFilter(button, filter) {
+            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            selectList(parseFilter(filter));
+        }
 
-        // 3. Appelle ta fonction
-        selectList("statut", asc, selectedStatuses);
-        zoomimg();
-    }
+        const navButtons = document.querySelectorAll('.bottom-nav button[data-filter]');
+        navButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                setNavFilter(this, this.dataset.filter);
+            });
+        });
 
-    document.querySelectorAll('.filter-dropdown input').forEach(el => {
-        el.addEventListener('change', handleFilterChange);
-    });
-</script>
+        // Par défaut, bouton “À voir” sélectionné
+        const defaultButton = document.querySelector('.bottom-nav button[data-filter="toview,next,waiting,dropped,restart,again"]');
+        if (defaultButton) {
+            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
+            defaultButton.classList.add('active');
+        }
+
+        selectList(parseFilter('toview,next,waiting,dropped,restart,again'));
+        printCounts();
+
+        // Swipe navigation for mobile
+        const swipeArea = document.querySelector('main');
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchStartTime = 0;
+
+        function getActiveFilterIndex() {
+            const buttons = Array.from(document.querySelectorAll('.bottom-nav button[data-filter]'));
+            return buttons.findIndex(btn => btn.classList.contains('active'));
+        }
+
+        function swipeToIndex(index) {
+            const buttons = Array.from(document.querySelectorAll('.bottom-nav button[data-filter]'));
+            if (index < 0 || index >= buttons.length) return;
+            const button = buttons[index];
+            button.click();
+        }
+
+        function handleSwipe(dx, dy, duration) {
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+
+            if (window.scrollY === 0 && absDy > absDx && dy > 100 && duration > 120) {
+                window.location.reload();
+                return;
+            }
+
+            if (absDx < 40 || absDx < absDy) return;
+            const currentIndex = getActiveFilterIndex();
+            if (currentIndex === -1) return;
+            if (dx < 0) {
+                swipeToIndex(currentIndex + 1);
+            } else {
+                swipeToIndex(currentIndex - 1);
+            }
+        }
+
+        const pullRefreshHint = document.getElementById('pullRefreshHint');
+        const grid = document.getElementById('gridAnime');
+
+        function resetSwipeClass() {
+            if (!grid) return;
+            grid.classList.remove('swipe-left', 'swipe-right');
+        }
+
+        if (swipeArea) {
+            swipeArea.addEventListener('touchstart', event => {
+                if (event.touches.length !== 1) return;
+                touchStartX = event.touches[0].clientX;
+                touchStartY = event.touches[0].clientY;
+                touchStartTime = Date.now();
+                if (pullRefreshHint) {
+                    pullRefreshHint.classList.remove('active');
+                }
+            }, { passive: true });
+
+            swipeArea.addEventListener('touchmove', event => {
+                if (event.touches.length !== 1) return;
+                const touch = event.touches[0];
+                const dx = touch.clientX - touchStartX;
+                const dy = touch.clientY - touchStartY;
+                if (window.scrollY === 0 && dy > 40 && Math.abs(dy) > Math.abs(dx) && pullRefreshHint) {
+                    pullRefreshHint.classList.add('active');
+                } else if (pullRefreshHint) {
+                    pullRefreshHint.classList.remove('active');
+                }
+            }, { passive: true });
+
+            swipeArea.addEventListener('touchend', event => {
+                const touch = event.changedTouches[0];
+                const dx = touch.clientX - touchStartX;
+                const dy = touch.clientY - touchStartY;
+                const duration = Date.now() - touchStartTime;
+                if (grid) {
+                    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) >= 40) {
+                        grid.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
+                        window.setTimeout(resetSwipeClass, 220);
+                    }
+                }
+                handleSwipe(dx, dy, duration);
+                if (pullRefreshHint) {
+                    pullRefreshHint.classList.remove('active');
+                }
+            });
+        }
+    </script>
+
 </body>
+
 </html>

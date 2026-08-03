@@ -60,16 +60,35 @@ async function addAnime(idanime, urlimg, nomnative, nomromaji, nomenglish, langu
     printCounts();
 }
 
-async function selectList(orderby = "nompref", asc = true, statusArray = ["toview", "next", "watching", "finished", "waiting", "dropped", "restart", "again"]) {
+async function getUser(login, mdp) {
+    const { data, error } = await Supabase
+        .from('users')  
+        .select('name')
+        .eq('login', login)
+        .eq('mdp', mdp);
+    if (error) console.error(error);
+    console.log(data);
+    
+    setsess({
+        nomsess: "username",
+        valsess: data[0].name
+    });
+}
+
+async function selectList(statsArray = ["toview", "next", "watching", "finished", "waiting", "dropped", "restart", "again"], orderby = "nompref", asc = true) {
+    if (!Array.isArray(statsArray)) {
+        statsArray = [statsArray];
+    }
     let tablename = 'list' + sessionStorage.getItem('username').toLowerCase();
-    document.querySelector("tbody").innerHTML = '';
+    const grid = document.querySelector("#gridAnime");
+    if (grid) grid.innerHTML = '';
     
     let query = Supabase
         .from(tablename)  
         .select(`id, idanime, urlimg, nomnative, nomromaji, nomenglish, nompref, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepparsaison, film, duree, favori, flag`);
     
-        if (statusArray.length > 0){
-            query = query.in("statut", statusArray);
+        if (statsArray.length > 0){
+            query = query.in("statut", statsArray);
         }
 
         query = query.order(orderby, { ascending: asc });
@@ -98,8 +117,23 @@ async function selectList(orderby = "nompref", asc = true, statusArray = ["tovie
         })
     }
 
+    let currentGroup = '';
     data.forEach(data_ => {
-        addAnimeRow({
+        const title = data_.nompref || '';
+        const grid = document.querySelector('#gridAnime');
+        if (orderby === 'nompref' && grid) {
+            const firstChar = title.trim().charAt(0).toUpperCase();
+            const group = /[A-Z]/.test(firstChar) ? firstChar : '#';
+            if (group !== currentGroup) {
+                currentGroup = group;
+                const separator = document.createElement('div');
+                separator.classList.add('grid-letter-separator');
+                separator.textContent = group;
+                grid.appendChild(separator);
+            }
+        }
+
+        addAnimeCard({
             id: data_.id,
             img: data_.urlimg,
             title: data_.nompref,
@@ -116,134 +150,276 @@ async function selectList(orderby = "nompref", asc = true, statusArray = ["tovie
     });   
 }
 
-async function getUser(login, mdp) {
-    const { data, error } = await Supabase
-        .from('users')  
-        .select('name')
-        .eq('login', login)
-        .eq('mdp', mdp);
-    if (error) console.error(error);
-    console.log(data);
-    
-    setsess({
-        nomsess: "username",
-        valsess: data[0].name
-    });
-}
+function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag }) {
+    const grid = document.getElementById('gridAnime');
+    if (!grid) return;
 
-function addAnimeRow({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag }) {
-    if (sessionStorage.getItem('orderby') == 'nompref') {
-        const numbers = [0,1,2,3,4,5,6,7,8,9];
-        if (numbers.includes(parseInt(title[0]))) {
-            if (sessionStorage.getItem('letter') != '#') {
-                addLetterInTab('#');
-            }
-            setsess({
-                nomsess: "letter",
-                valsess: '#'
-            })
-        }
-        else{
-            if (title[0] != sessionStorage.getItem('letter')) {
-                setsess({
-                    nomsess: "letter",
-                    valsess: title[0]
-                })
-                addLetterInTab(title[0]);
-            }
-        }
-    }
-
-    const table = document.querySelector("tbody"); // ton tableau doit avoir id="animeTable"
-    
-    // Création de la ligne
-    const tr = document.createElement("tr");
-
+    const card = document.createElement('div');
+    card.classList.add('anime-card');
     if (favori == 1) {
-        tr.classList.add('favorite');
+        card.classList.add('selected');
     }
     if (flag == 1) {
-        tr.classList.add('flag');
+        card.dataset.flag = '1';
     }
 
-    // Colonne image
-    const tdImg = document.createElement("td");
-    const imgEl = document.createElement("img");
-    imgEl.src = img;
-    imgEl.alt = title;
-    imgEl.classList.add('zoomable');
-    tdImg.appendChild(imgEl);
+    const image = document.createElement('img');
+    image.src = img;
+    image.alt = title;
+    card.appendChild(image);
 
-    // Colonne titre
-    const tdTitle = document.createElement("td");
-    tdTitle.textContent = title;
+    const cardTop = document.createElement('div');
+    cardTop.classList.add('card-top');
+    const badge = document.createElement('span');
+    if (film == 1) {
+        badge.textContent = duree || 'Film';
+    } else if (status === 'watching' || status === 'waiting' || status === 'dropped') {
+        const currentSeason = saisonencours || 0;
+        const currentEpisode = epencours || 0;
+        badge.textContent = `S${currentSeason} • Ep ${currentEpisode}`;
+    } else {
+        const seasonsText = saisons == null || saisons == 0 ? 'Non renseignée' : `${saisons} S`;
+        const episodesText = episodes ? `• ${episodes} Ep` : '';
+        badge.textContent = `${seasonsText} ${episodesText}`.trim();
+    }
+    cardTop.appendChild(badge);
+    card.appendChild(cardTop);
 
-    // Colonne saisons/épisodes
-    const tdSeasons = document.createElement("td");
-    // console.log(film);
-    if (film == 0) {
-        if (saisons == 0 || saisons == null) {
-            tdSeasons.textContent = "Non renseignée";
-        } else {
-            tdSeasons.textContent = `${
-                status == "watching" || status == "dropped" ? `Saison ${saisonencours}, épisode ${epencours}` : 
-                status == "waiting" ? `Saison ${saisonencours}` :
-                episodes == null ? `${saisons} saison${saisons > 1 ? "s" : ""}` :
-                `${saisons} saison${saisons > 1 ? "s" : ""} (${episodes})`
-            }`;
+    const cardBottom = document.createElement('div');
+    cardBottom.classList.add('card-bottom');
+    const cardTitle = document.createElement('h3');
+    cardTitle.textContent = title;
+    cardBottom.appendChild(cardTitle);
+    card.appendChild(cardBottom);
+
+    card.addEventListener('click', () => {
+        showCardInfo({
+            id,
+            img,
+            title,
+            saisons,
+            episodes,
+            status,
+            saisonencours,
+            epencours,
+            film,
+            duree,
+            favori,
+            flag
+        });
+    });
+
+    grid.appendChild(card);
+}
+
+function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag }) {
+    const overlay = document.getElementById('cardInfoOverlay');
+    if (!overlay) return;
+
+    const image = overlay.querySelector('.card-info-image img');
+    const titleEl = overlay.querySelector('.card-info-header h2');
+    const statusEl = overlay.querySelector('.card-info-status');
+    const detailsEl = overlay.querySelector('.card-info-details');
+
+    image.src = img || '';
+    image.alt = title || '';
+    titleEl.textContent = title || 'Sans titre';
+    statusEl.textContent =
+        status === 'toview' ? 'À voir' :
+        status === 'next' ? 'Suivant' :
+        status === 'watching' ? 'En cours' :
+        status === 'finished' ? 'Terminé' :
+        status === 'waiting' ? 'En attente' :
+        status === 'dropped' ? 'Abandonné' :
+        status === 'restart' ? 'Recommencer' :
+        status === 'again' ? 'À revoir' :
+        status || 'Statut inconnu';
+
+    const rows = [];
+    if (film == 1) {
+        rows.push({ label: 'Type', value: 'Film' });
+        rows.push({ label: 'Durée', value: duree || 'Non renseignée' });
+    } else {
+        rows.push({ label: 'Saisons', value: saisons || 'Non renseignée' });
+        rows.push({ label: 'Épisodes', value: episodes || 'Non renseignés' });
+        if (status === 'watching' || status === 'dropped' || status === 'waiting') {
+            rows.push({ label: 'Progression', value: `S${saisonencours || 0} • Ep ${epencours || 0}` });
+        }
+    }
+    rows.push({ label: 'Favori', value: favori == 1 ? 'Oui' : 'Non' });
+    rows.push({ label: 'Flag', value: flag == 1 ? 'Oui' : 'Non' });
+
+    detailsEl.innerHTML = '';
+    rows.forEach(({ label, value }) => {
+        const row = document.createElement('div');
+        row.className = 'card-info-row';
+        row.innerHTML = `<span>${label}</span><span>${value}</span>`;
+        detailsEl.appendChild(row);
+    });
+
+    overlay.dataset.cardId = id;
+    overlay.classList.remove('hidden');
+}
+
+function hideCardInfo() {
+    const overlay = document.getElementById('cardInfoOverlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+}
+
+function openEditFromCardInfo() {
+    const overlay = document.getElementById('cardInfoOverlay');
+    if (!overlay || !overlay.dataset.cardId) return;
+    hideCardInfo();
+    editrow(Number(overlay.dataset.cardId));
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('animeForm-edit');
+    if (!modal) return;
+    modal.classList.remove('show');
+    clearModal2();
+}
+
+function updateSeasonInputs(nb = 0, eplist = [], prefix = '') {
+    const count = Number(nb) || 0;
+    const container = document.getElementById(`seasonInputs${prefix}`);
+    if (!container) return;
+
+    container.innerHTML = '';
+    if (count <= 0) return;
+
+    const label = document.createElement('label');
+    label.textContent = 'Épisodes / saisons';
+    container.appendChild(label);
+
+    for (let i = 1; i <= count; i++) {
+        const div = document.createElement('div');
+        div.className = 'season-line';
+        const value = eplist && eplist[i - 1] ? eplist[i - 1] : '';
+        div.innerHTML = `
+            <span>Saison ${i} :</span>
+            <input type="number" min="1" value="${value}">
+        `;
+        container.appendChild(div);
+    }
+}
+
+function updateSeasonInputs2() {
+    const count = document.getElementById('seasonCount-edit')?.value;
+    const details = document.getElementById('seasonInputs-edit')?.dataset.details;
+    const detailList = details ? details.split(',') : [];
+    updateSeasonInputs(count, detailList, '-edit');
+}
+
+function StatutChange(newval, prefix = '') {
+    const currentValues = document.getElementById(`currentsvalues${prefix}`);
+    const champSaison = document.getElementById(`currentseason${prefix}`);
+    const champEp = document.getElementById(`currentep${prefix}`);
+
+    if (!currentValues) return;
+
+    if (newval === 'watching' || newval === 'waiting' || newval === 'dropped') {
+        currentValues.style.display = 'flex';
+    } else {
+        currentValues.style.display = 'none';
+        if (champSaison) champSaison.value = null;
+        if (champEp) champEp.value = null;
+    }
+}
+
+function StatutChange2(newval) {
+    StatutChange(newval, '-edit');
+}
+
+function sfChange(prefix = '') {
+    const checkbox = document.getElementById(`checkboxsf${prefix}`);
+    const divDuree = document.getElementById(`divduree${prefix}`);
+    const divNbsaison = document.getElementById(`divnbsaison${prefix}`);
+    const seasonCount = document.getElementById(`seasonCount${prefix}`);
+
+    if (!checkbox || !divDuree || !divNbsaison) return;
+
+    if (checkbox.checked) {
+        divDuree.style.display = 'flex';
+        divNbsaison.style.display = 'none';
+        if (seasonCount) {
+            seasonCount.value = '';
+            updateSeasonInputs(0, [], prefix);
         }
     } else {
-        tdSeasons.textContent = duree;
+        divDuree.style.display = 'none';
+        divNbsaison.style.display = 'flex';
     }
-    
-    // Colonne statut
-    const tdStatus = document.createElement("td");
-    tdStatus.classList.add("status", status.toLowerCase()); // ex: status="finished"
-    tdStatus.textContent = 
-        status === "toview" ? "À voir" :
-        status === "next" ? "Suivant" :
-        status === "watching" ? "En cours" :
-        status === "finished" ? "Terminé" :
-        status === "waiting" ? "En attente" :
-        status === "dropped" ? "Abandonné" :
-        status === "restart" ? "Recommencer" :
-        status === "again" ? "À Revoir" :
-        "";
+}
 
-    // Colonne actions (boutons)
-    const tdActions = document.createElement("td");
+function editBtnClick() {
+    const rowid = document.getElementById('rowid').value;
+    const urlimg = document.getElementById('imgURL-edit').value;
+    const nomnative = document.getElementById('titrenatif-edit').value;
+    const nomromaji = document.getElementById('titrermji-edit').value;
+    const nomenglish = document.getElementById('titreen-edit').value;
+    const languepref = document.getElementById('languepref-edit').value;
+    const statut = document.getElementById('statut-edit').value;
+    const nbsaisons = document.getElementById('seasonCount-edit').value;
+    const saisonencours = document.getElementById('currentseason-edit').value;
+    const epencours = document.getElementById('currentep-edit').value;
+    const checkboxsf = document.getElementById('checkboxsf-edit').checked;
+    const duree = document.getElementById('duree-edit').value;
+    const divs = document.querySelectorAll('#animeForm-edit .season-line');
+    const champ_favori = document.getElementById('favorite-edit');
+    const champ_flag = document.getElementById('flag-edit');
 
-    if (status == "watching") {
-        const btnNext = document.createElement("button");
-        btnNext.classList.add("next-ep");
-        btnNext.textContent = "➡️";
-        btnNext.value = id;
-        
-        btnNext.onclick = function(){
-            nextep(this.value);
-        };
-        tdActions.appendChild(btnNext);
+    let favori = champ_favori?.checked ? 1 : 0;
+    let flag = champ_flag?.checked ? 1 : 0;
+
+    let detailsepsaison = '';
+    divs.forEach(div => {
+        const input = div.querySelector('input');
+        if (!input) return;
+        const valeurInput = input.value;
+        if (detailsepsaison !== '') detailsepsaison += ',';
+        detailsepsaison += String(valeurInput);
+    });
+
+    let nbepisodes = 0;
+    divs.forEach(div => {
+        const input = div.querySelector('input');
+        if (!input) return;
+        const value = Number(input.value) || 0;
+        nbepisodes += value;
+    });
+
+    const id = Number(rowid);
+    updaterow(id, nomnative, nomromaji, nomenglish, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepsaison, checkboxsf, duree, favori, flag);
+    closeEditModal();
+
+    setTimeout(() => {
+        selectList();
+        clearModal2();
+        sfChange('-edit');
+    }, 500);
+}
+
+function delBtnClick() {
+    const rowid = document.getElementById('rowid').value;
+    const nomromaji = document.getElementById('titrermji-edit').value;
+    const nomenglish = document.getElementById('titreen-edit').value;
+    const languepref = document.getElementById('languepref-edit').value;
+
+    let nomanime = nomenglish;
+    if (languepref === 'NA') {
+        nomanime = nomromaji;
     }
-
-    const btnEdit = document.createElement("button");
-    btnEdit.classList.add("edit");
-    btnEdit.textContent = "⚙️";
-    btnEdit.value = id;
-    btnEdit.onclick = function(){
-        editrow(this.value);
-    };
-
-    tdActions.appendChild(btnEdit);
-
-    // On assemble tout dans le tr
-    tr.appendChild(tdImg);
-    tr.appendChild(tdTitle);
-    tr.appendChild(tdSeasons);
-    tr.appendChild(tdStatus);
-    tr.appendChild(tdActions);
-
-    // Ajout dans le tableau
-    table.appendChild(tr);
+    if (confirm('Supprimer ' + nomanime + ' ?')) {
+        deleteRow(rowid);
+        closeEditModal();
+        setTimeout(() => {
+            selectList();
+            clearModal2();
+            sfChange('-edit');
+        }, 500);
+    }
 }
 
 function clearModal() {
@@ -280,13 +456,13 @@ function clearModal2() {
     document.getElementById('titreen-edit').value = '';
     document.getElementById('languepref-edit').value = 'EN';
     document.getElementById('statut-edit').value = 'toview';
-    StatutChange('toview');
+    StatutChange2('toview');
     document.getElementById('seasonCount-edit').value = '';
     document.getElementById('previewImg-edit').style.display = 'none';
     document.getElementById('checkboxsf-edit').checked = false;
     document.getElementById('duree-edit').value = '00:00';
-    updateSeasonInputs();
-    sfChange();
+    updateSeasonInputs(0, [], '-edit');
+    sfChange('-edit');
 }
 
 async function login (login, mdp) {
@@ -337,6 +513,7 @@ function editrow(id) {
 
 function changerowvalues({id, idanime, urlimg, nomnative, nomromaji, nomenglish, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepparsaison, film, duree, favori, flag}){
     const rowid = document.getElementById('rowid');
+    const champ_imgurl = document.getElementById('imgURL-edit');
     const champ_urlimg = document.getElementById('previewImg-edit');
     const champ_nomnative = document.getElementById('titrenatif-edit');
     const champ_nomromaji = document.getElementById('titrermji-edit');
@@ -394,8 +571,11 @@ function changerowvalues({id, idanime, urlimg, nomnative, nomromaji, nomenglish,
 
     if (detailsepparsaison != null) {
         detailsepparsaison = detailsepparsaison.split(",")
+    } else {
+        detailsepparsaison = [];
     }
 
+    divsseasonInputs.dataset.details = detailsepparsaison.join(",");
     champ_film.checked = film;
     if (film === 1) {
         div_nbsaisons.style.display = 'none';
