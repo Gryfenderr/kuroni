@@ -173,14 +173,8 @@ function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours
     const badge = document.createElement('span');
     if (film == 1) {
         badge.textContent = duree || 'Film';
-    } else if (status === 'watching' || status === 'waiting' || status === 'dropped') {
-        const currentSeason = saisonencours || 0;
-        const currentEpisode = epencours || 0;
-        badge.textContent = `S${currentSeason} • Ep ${currentEpisode}`;
     } else {
-        const seasonsText = saisons == null || saisons == 0 ? 'Non renseignée' : `${saisons} S`;
-        const episodesText = episodes ? `• ${episodes} Ep` : '';
-        badge.textContent = `${seasonsText} ${episodesText}`.trim();
+        badge.textContent = episodes ? `${episodes} Ep` : 'Épisodes inconnus';
     }
     cardTop.appendChild(badge);
     card.appendChild(cardTop);
@@ -212,7 +206,8 @@ function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours
     grid.appendChild(card);
 }
 
-function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag }) {
+function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag }, options = {}) {
+    const { isSearchResult = false, searchData = null } = options;
     const overlay = document.getElementById('cardInfoOverlay');
     if (!overlay) return;
 
@@ -220,6 +215,8 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
     const titleEl = overlay.querySelector('.card-info-header h2');
     const statusEl = overlay.querySelector('.card-info-status');
     const detailsEl = overlay.querySelector('.card-info-details');
+    const addButton = overlay.querySelector('.card-info-add-btn');
+    const editButton = overlay.querySelector('.card-info-edit-btn');
 
     image.src = img || '';
     image.alt = title || '';
@@ -240,10 +237,9 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
         rows.push({ label: 'Type', value: 'Film' });
         rows.push({ label: 'Durée', value: duree || 'Non renseignée' });
     } else {
-        rows.push({ label: 'Saisons', value: saisons || 'Non renseignée' });
         rows.push({ label: 'Épisodes', value: episodes || 'Non renseignés' });
         if (status === 'watching' || status === 'dropped' || status === 'waiting') {
-            rows.push({ label: 'Progression', value: `S${saisonencours || 0} • Ep ${epencours || 0}` });
+            rows.push({ label: 'Progression', value: `Ep ${epencours || 0}` });
         }
     }
     rows.push({ label: 'Favori', value: favori == 1 ? 'Oui' : 'Non' });
@@ -257,7 +253,24 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
         detailsEl.appendChild(row);
     });
 
-    overlay.dataset.cardId = id;
+    if (isSearchResult && addButton) {
+        addButton.classList.remove('hidden');
+        if (editButton) editButton.classList.add('hidden');
+        addButton.disabled = false;
+        addButton.textContent = 'Ajouter à la liste';
+        addButton.onclick = async () => {
+            const nbepisodes = Number(searchData?.nbepisodes || episodes || 0);
+            await addAnime(searchData?.id || id, searchData?.coverImage || img || '', searchData?.nativeTitle || '', searchData?.romajiTitle || title || '', searchData?.englishTitle || title || '', 'EN', 'toview', 1, nbepisodes, 0, 0, '', false, '', 0, 0);
+            addButton.textContent = 'Ajouté';
+            addButton.disabled = true;
+        };
+        overlay.dataset.cardId = '';
+    } else {
+        if (addButton) addButton.classList.add('hidden');
+        if (editButton) editButton.classList.remove('hidden');
+        overlay.dataset.cardId = id;
+    }
+
     overlay.classList.remove('hidden');
 }
 
@@ -789,11 +802,17 @@ function clearSearchResults(message = 'Commencez une recherche pour afficher les
     empty.style.display = 'block';
 }
 
+let selectedSearchAnime = null;
+
 function renderSearchResults(items) {
     const results = document.getElementById('searchResults');
     const empty = document.getElementById('searchEmpty');
+    const details = document.getElementById('searchDetails');
     if (!results || !empty) return;
     results.innerHTML = '';
+    if (details) {
+        details.classList.add('hidden');
+    }
     if (!items.length) {
         empty.textContent = 'Aucun résultat trouvé.';
         empty.style.display = 'block';
@@ -814,8 +833,51 @@ function renderSearchResults(items) {
                 <span class="search-result-subtitle">${item.subtitle || ''}</span>
             </div>
         `;
+        row.addEventListener('click', () => showCardInfo({
+            id: item.id,
+            img: item.coverImage || '',
+            title: item.title,
+            saisons: 1,
+            episodes: item.nbepisodes,
+            status: 'toview',
+            saisonencours: 0,
+            epencours: 0,
+            film: 0,
+            duree: '',
+            favori: 0,
+            flag: 0
+        }, { isSearchResult: true, searchData: item }));
         results.appendChild(row);
     });
+}
+
+function selectSearchResult(item) {
+    selectedSearchAnime = item;
+    const details = document.getElementById('searchDetails');
+    const image = document.getElementById('searchDetailsImage');
+    const title = document.getElementById('searchDetailsTitle');
+    const subtitle = document.getElementById('searchDetailsSubtitle');
+    const episodes = document.getElementById('searchDetailsEpisodes');
+    const year = document.getElementById('searchDetailsYear');
+    const addButton = document.getElementById('searchAddButton');
+
+    if (!details || !image || !title || !subtitle || !episodes || !year || !addButton) return;
+
+    image.src = item.coverImage || 'https://via.placeholder.com/240x360?text=No+Image';
+    title.textContent = item.title || 'Titre inconnu';
+    subtitle.textContent = item.subtitle || '';
+    episodes.textContent = item.nbepisodes ? `${item.nbepisodes} épisodes` : 'Épisodes inconnus';
+    year.textContent = item.year ? `Année ${item.year}` : '';
+    details.classList.remove('hidden');
+
+    addButton.disabled = false;
+    addButton.textContent = 'Ajouter à la liste';
+    addButton.onclick = async () => {
+        const nbepisodes = Number(item.nbepisodes) || 0;
+        await addAnime(item.id, item.coverImage || '', item.nativeTitle || '', item.romajiTitle || item.title || '', item.englishTitle || item.title || '', 'EN', 'toview', 1, nbepisodes, 0, 0, '', false, '', 0, 0);
+        addButton.textContent = 'Ajouté';
+        addButton.disabled = true;
+    };
 }
 
 async function searchAnime(query) {
@@ -857,9 +919,15 @@ async function searchAnime(query) {
         const data = await response.json();
         const media = data?.data?.Page?.media || [];
         const items = media.map(anime => ({
+            id: anime.id,
             title: anime.title.english || anime.title.romaji || anime.title.native || 'Sans titre',
+            nativeTitle: anime.title.native || '',
+            romajiTitle: anime.title.romaji || anime.title.english || anime.title.native || '',
+            englishTitle: anime.title.english || anime.title.romaji || anime.title.native || '',
             subtitle: anime.seasonYear ? `${anime.seasonYear} • ${anime.episodes || '?'} Ep` : `${anime.episodes || '?'} Ep`,
-            coverImage: anime.coverImage?.medium || anime.coverImage?.large || ''
+            coverImage: anime.coverImage?.medium || anime.coverImage?.large || '',
+            nbepisodes: anime.episodes || 0,
+            year: anime.seasonYear || ''
         }));
         renderSearchResults(items);
     } catch (err) {
