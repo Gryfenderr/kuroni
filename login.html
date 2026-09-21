@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Login Kuroni</title>    
   <link rel="stylesheet" href="styles/login.css">
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Tokyo+Zoo&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -21,23 +20,85 @@
   <link rel="icon" href="icons/favicon.ico">
 </head>
 <body>
+  <div class="splash-screen" id="splashScreen" aria-label="Chargement de Kuroni">
+    <div class="splash-logo" aria-hidden="true">
+      <img class="splash-image" src="icons/icon-512-removebg.png" alt="">
+    </div>
+  </div>
+
   <div class="login-container">
     <div class="login-card">
-      <h1 class="title">Kuroni</h1>
-      <!-- <h1 class="title">アニメログイン</h1> -->
+      <header class="login-header">
+        <p class="login-kicker">Anime list</p>
+        <h1 class="title">Kuroni</h1>
+        <p class="subtitle">Retrouve ta liste d’animes et reprends exactement là où tu t’es arrêté.</p>
+      </header>
 
+      <form class="login-form" id="loginForm" novalidate>
         <div class="form-group">
           <label for="username">Nom d'utilisateur</label>
-          <input type="text" id="username" placeholder="ex: otaku123">
+          <input type="text" id="username" name="username" placeholder="ex: otaku123" autocomplete="username" autocapitalize="none" required>
         </div>
 
         <div class="form-group">
           <label for="password">Mot de passe</label>
-          <input type="password" id="password" placeholder="********">
+          <input type="password" id="password" name="password" placeholder="Ton mot de passe" autocomplete="current-password" required>
         </div>
 
-        <button class="login-btn" onclick="login(document.getElementById('username').value, document.getElementById('password').value);">Se connecter</button>
+        <p class="login-status" id="loginStatus" role="alert" aria-live="polite"></p>
+        <button class="login-btn" id="loginButton" type="submit">Se connecter</button>
+      </form>
     </div>
   </div>
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginButton = document.getElementById('loginButton');
+    const loginStatus = document.getElementById('loginStatus');
+    const splashScreen = document.getElementById('splashScreen');
+    let loginSubmitted = false;
+
+    function finishSplash() {
+      document.body.classList.add('splash-done');
+      document.querySelector('.login-card').classList.add('login-visible');
+      window.setTimeout(() => splashScreen.remove(), 650);
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      finishSplash();
+    } else {
+      window.setTimeout(finishSplash, 2200);
+    }
+
+    async function submitLogin() {
+      if (loginSubmitted || !usernameInput.value || !passwordInput.value) return;
+      loginSubmitted = true;
+      loginButton.disabled = true;
+      loginButton.textContent = 'Connexion...';
+      loginStatus.textContent = '';
+
+      const authenticated = await login(usernameInput.value.trim(), passwordInput.value);
+      if (!authenticated) {
+        loginSubmitted = false;
+        loginButton.disabled = false;
+        loginButton.textContent = 'Se connecter';
+        loginStatus.textContent = 'Identifiants incorrects. Vérifie tes informations.';
+      }
+    }
+
+    loginForm.addEventListener('submit', event => {
+      event.preventDefault();
+      submitLogin();
+    });
+
+    // Certains navigateurs remplissent les champs sans émettre d'événement input.
+    const autofillCheck = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && usernameInput.value && passwordInput.value) {
+        window.clearInterval(autofillCheck);
+        submitLogin();
+      }
+    }, 250);
+  </script>
 </body>
 </html>
