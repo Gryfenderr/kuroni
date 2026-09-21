@@ -26,7 +26,7 @@
     </div>
   </div>
 
-  <div class="login-container">
+  <div class="login-container" id="loginContainer" inert aria-hidden="true">
     <div class="login-card">
       <header class="login-header">
         <p class="login-kicker">Anime list</p>
@@ -57,11 +57,15 @@
     const loginButton = document.getElementById('loginButton');
     const loginStatus = document.getElementById('loginStatus');
     const splashScreen = document.getElementById('splashScreen');
+    const loginContainer = document.getElementById('loginContainer');
     let loginSubmitted = false;
 
     function finishSplash() {
       document.body.classList.add('splash-done');
       document.querySelector('.login-card').classList.add('login-visible');
+      loginContainer.removeAttribute('inert');
+      loginContainer.removeAttribute('aria-hidden');
+      window.setTimeout(() => usernameInput.focus(), 750);
       window.setTimeout(() => splashScreen.remove(), 650);
     }
 
