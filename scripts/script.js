@@ -521,6 +521,7 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
     const addButton = overlay.querySelector('.card-info-add-btn');
     const progressButton = overlay.querySelector('.card-info-progress-btn');
     const editButton = overlay.querySelector('.card-info-edit-btn');
+    const finishButton = overlay.querySelector('.card-info-finish-btn');
 
     image.src = img || '';
     image.alt = title || '';
@@ -568,6 +569,7 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
         addButton.classList.remove('hidden');
         if (editButton) editButton.classList.add('hidden');
         if (progressButton) progressButton.classList.add('hidden');
+        if (finishButton) finishButton.classList.add('hidden');
         addButton.disabled = false;
             addButton.textContent = 'Ajouter à la liste';
         addButton.onclick = async () => {
@@ -607,6 +609,16 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
     } else {
         if (addButton) addButton.classList.add('hidden');
         if (editButton) editButton.classList.remove('hidden');
+        if (finishButton) {
+            finishButton.classList.toggle('hidden', status === 'finished');
+            finishButton.disabled = false;
+            finishButton.onclick = async () => {
+                finishButton.disabled = true;
+                const updated = await markAnimeFinished(id);
+                if (updated) hideCardInfo();
+                else finishButton.disabled = false;
+            };
+        }
         if (progressButton) {
             const canAdvance = film != 1 && status === 'watching';
             const canStart = film != 1 && status === 'toview';
@@ -698,7 +710,7 @@ async function editBtnClick() {
     const languepref = document.getElementById('languepref-edit').value;
     const statut = document.getElementById('statut-edit').value;
     const saisonencours = 0;
-    const epencours = document.getElementById('currentep-edit').value;
+    const epencours = Number(document.getElementById('currentep-edit').value) || 0;
     const checkboxsf = document.getElementById('checkboxsf-edit').checked;
     const duree = document.getElementById('duree-edit').value;
     const nbepisodes = Number(document.getElementById('seasonCount-edit').value) || 0;
@@ -1113,6 +1125,25 @@ async function updateEp(id, ep, saison, status) {
     currentFilterValue = activeFilter;
     selectList(parseFilter(activeFilter));
     showAppToast('Progression mise à jour.', 'success');
+    return true;
+}
+
+async function markAnimeFinished(id) {
+    const tablename = 'list' + sessionStorage.getItem('username').toLowerCase();
+    const { error } = await Supabase
+        .from(tablename)
+        .update({ statut: 'finished' })
+        .eq('id', id);
+    if (error) {
+        console.error(error);
+        showAppToast('Impossible de terminer cet anime.', 'error');
+        return false;
+    }
+    printCounts();
+    const activeFilter = sessionStorage.getItem('currentListFilter') || currentFilterValue;
+    currentFilterValue = activeFilter;
+    selectList(parseFilter(activeFilter));
+    showAppToast('Anime marqué comme terminé.', 'success');
     return true;
 }
 

@@ -1145,6 +1145,38 @@ input:checked + .slider::before {
     background: rgba(39, 145, 79, .95);
 }
 
+.card-info-finish-btn {
+    position: absolute;
+    top: 50%;
+    right: max(12px, calc((100vw - 680px) / 2 - 60px));
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 1px solid rgba(83, 210, 130, .7);
+    border-radius: 50%;
+    background: rgba(20, 94, 52, .82);
+    color: #b5f5c7;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+    z-index: 1;
+}
+
+.card-info-finish-btn:hover:not(:disabled) {
+    transform: translateY(-50%) scale(1.08);
+    background: rgba(39, 145, 79, .95);
+}
+
+.card-info-finish-btn:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.card-info-finish-btn .material-symbols-rounded {
+    font-size: 22px;
+}
+
 .card-info-edit-btn:hover {
     background: rgba(255,255,255,0.14);
 }
