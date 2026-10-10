@@ -1,4 +1,4 @@
-﻿/* Thème général */
+/* Thème général */
 html {
     overscroll-behavior-y: none;
 }
@@ -19,7 +19,6 @@ main{
 
     padding:16px;
     padding-bottom:110px; /* laisse la place à la navbar */
-    touch-action: pan-y;
 
 }
 
@@ -27,41 +26,14 @@ main{
     display: none;
 }
 
-.view-panel[hidden] {
-    display: none !important;
-}
-
 .view-panel.active {
     display: block;
     animation: view-enter .2s ease-out both;
 }
 
-.view-panel.page-enter-from-left {
-    animation: page-enter-from-left .24s ease-out both;
-}
-
-.view-panel.page-enter-from-right {
-    animation: page-enter-from-right .24s ease-out both;
-}
-
-.view-panel.page-dragging {
-    filter: drop-shadow(0 8px 18px rgba(0,0,0,0.32));
-    will-change: transform;
-}
-
 @keyframes view-enter {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes page-enter-from-left {
-    from { opacity: .82; transform: translateX(-100%); }
-    to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes page-enter-from-right {
-    from { opacity: .82; transform: translateX(100%); }
-    to { opacity: 1; transform: translateX(0); }
 }
 
 #gridAnime.active {
@@ -467,6 +439,14 @@ main{
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.15em;
+}
+
+#gridAnime.swipe-left {
+    transform: translateX(-12px);
+}
+
+#gridAnime.swipe-right {
+    transform: translateX(12px);
 }
 
 .pull-refresh-hint {
@@ -1203,8 +1183,8 @@ input:checked + .slider::before {
 
 .app-toast {
     position: fixed;
-    right: 18px;
-    bottom: calc(104px + env(safe-area-inset-bottom));
+    top: calc(12px + env(safe-area-inset-top));
+    left: 50%;
     z-index: 60;
     max-width: min(360px, calc(100vw - 36px));
     padding: 13px 16px;
@@ -1215,13 +1195,13 @@ input:checked + .slider::before {
     box-shadow: 0 14px 34px rgba(0,0,0,.35);
     opacity: 0;
     pointer-events: none;
-    transform: translateY(12px);
-    transition: opacity .2s ease, transform .2s ease;
+    transform: translate(-50%, calc(-100% - 16px));
+    transition: opacity .3s ease, transform .3s ease;
 }
 
 .app-toast.visible {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, 0);
 }
 
 .app-toast.success { border-color: rgba(83, 210, 130, .7); }
@@ -1396,13 +1376,13 @@ input:checked + .slider::before {
 
 @media (max-width: 900px) {
     #gridAnime {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 720px) {
     #gridAnime {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
     }
 
@@ -1427,7 +1407,7 @@ input:checked + .slider::before {
 
 @media (max-width: 520px) {
     #gridAnime {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(1, minmax(0, 1fr));
     }
 
     .bottom-nav {
@@ -1447,7 +1427,7 @@ input:checked + .slider::before {
     }
 
     .recent-list {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -1456,9 +1436,7 @@ input:checked + .slider::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .view-panel.active,
-    .view-panel.page-enter-from-left,
-    .view-panel.page-enter-from-right {
+    .view-panel.active {
         animation: none;
     }
 }
@@ -1471,7 +1449,7 @@ input:checked + .slider::before {
 
 @media (max-width: 520px) {
     body.compact-mode #gridAnime {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -1506,7 +1484,7 @@ input:checked + .slider::before {
 }
 
 body.compact-mode #gridAnime {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 10px;
 }
 

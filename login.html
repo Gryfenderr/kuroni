@@ -63,10 +63,8 @@
     function finishSplash() {
       document.body.classList.add('splash-done');
       document.querySelector('.login-card').classList.add('login-visible');
-      window.setTimeout(() => {
-        loginContainer.removeAttribute('inert');
-        loginContainer.removeAttribute('aria-hidden');
-      }, 700);
+      loginContainer.removeAttribute('inert');
+      loginContainer.removeAttribute('aria-hidden');
       window.setTimeout(() => usernameInput.focus(), 750);
       window.setTimeout(() => splashScreen.remove(), 650);
     }
