@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="styles/style.css">
     <link rel="stylesheet" href="styles/card.css">
     <title>Kuroni</title>
@@ -483,9 +484,6 @@
         }
 
         function showView(viewName) {
-            const gridPanel = document.getElementById('gridAnime');
-            const settingsPanel = document.getElementById('settingsView');
-            const searchPanel = document.getElementById('searchView');
             setManualAddButtonVisibility(viewName);
 
             document.querySelectorAll('.view-panel').forEach(panel => {
@@ -493,18 +491,6 @@
                 panel.classList.toggle('active', isActive);
                 panel.hidden = !isActive;
             });
-
-            if (gridPanel) {
-                gridPanel.style.display = viewName === 'gridAnime' ? '' : 'none';
-            }
-
-            if (settingsPanel) {
-                settingsPanel.style.display = viewName === 'settingsView' ? 'block' : 'none';
-            }
-
-            if (searchPanel) {
-                searchPanel.style.display = viewName === 'searchView' ? 'block' : 'none';
-            }
 
             document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
 
@@ -529,55 +515,12 @@
                 usernameEl.textContent = sessionStorage.getItem('username') || 'Utilisateur';
             }
             loadSettingsSummary();
-            setManualAddButtonVisibility('settingsView');
-
-            document.querySelectorAll('.view-panel').forEach(panel => {
-                const isSettings = panel.id === 'settingsView';
-                panel.classList.toggle('active', isSettings);
-                panel.hidden = !isSettings;
-            });
-
-            const gridPanel = document.getElementById('gridAnime');
-            if (gridPanel) {
-                gridPanel.style.display = 'none';
-            }
-
-            const settingsPanel = document.getElementById('settingsView');
-            if (settingsPanel) {
-                settingsPanel.style.display = 'block';
-            }
-
-            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
-            const settingsButton = document.querySelector('.bottom-nav button[data-view="settings"]');
-            if (settingsButton) settingsButton.classList.add('active');
+            showView('settingsView');
         }
 
         function setSearchView() {
-            const searchPanel = document.getElementById('searchView');
-            const gridPanel = document.getElementById('gridAnime');
-            const settingsPanel = document.getElementById('settingsView');
             const searchInput = document.getElementById('searchQuery');
-            setManualAddButtonVisibility('searchView');
-
-            document.querySelectorAll('.view-panel').forEach(panel => {
-                const isSearch = panel.id === 'searchView';
-                panel.classList.toggle('active', isSearch);
-                panel.hidden = !isSearch;
-            });
-
-            if (gridPanel) {
-                gridPanel.style.display = 'none';
-            }
-            if (settingsPanel) {
-                settingsPanel.style.display = 'none';
-            }
-            if (searchPanel) {
-                searchPanel.style.display = 'block';
-            }
-
-            document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
-            const searchButton = document.querySelector('.bottom-nav button[data-view="search"]');
-            if (searchButton) searchButton.classList.add('active');
+            showView('searchView');
 
             if (searchInput) {
                 searchInput.focus();
@@ -629,7 +572,9 @@
         const swipeArea = document.querySelector('main');
         let touchStartX = 0;
         let touchStartY = 0;
-        let touchStartTime = 0;
+        let touchStartPanel = null;
+        let horizontalSwipeTracking = false;
+        let pageTransitionCommitted = false;
 
         function getNavButtons() {
             return Array.from(document.querySelectorAll('.bottom-nav button[data-filter], .bottom-nav button[data-view]'));
@@ -648,37 +593,38 @@
             if (button) button.click();
         }
 
-        function handleSwipe(dx, dy, duration) {
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
-
-            if (absDx < 40 || absDx < absDy) return;
-
+        function commitSwipe(direction) {
             const settingsPanel = document.getElementById('settingsView');
             const isSettingsActive = settingsPanel && settingsPanel.classList.contains('active');
 
-            if (isSettingsActive && dx < 0) {
+            if (isSettingsActive && direction < 0) {
                 const firstListButton = document.querySelector('.bottom-nav button[data-filter="toview,next,waiting,dropped,restart,again"]');
-                if (firstListButton) {
-                    showView('gridAnime');
-                    setNavFilter(firstListButton, firstListButton.dataset.filter);
-                }
-                return;
-            }
-
-            const currentIndex = getActiveFilterIndex();
-            if (currentIndex === -1) return;
-
-            if (dx < 0) {
-                swipeToIndex(currentIndex + 1);
+                if (firstListButton) firstListButton.click();
             } else {
-                swipeToIndex(currentIndex - 1);
+                const currentIndex = getActiveFilterIndex();
+                if (currentIndex !== -1) {
+                    swipeToIndex(currentIndex + (direction < 0 ? 1 : -1));
+                }
             }
+
+            const activePanel = document.querySelector('.view-panel.active');
+            if (!activePanel) return;
+            resetPageDrag();
+            activePanel.style.removeProperty('transform');
+            activePanel.style.removeProperty('animation');
+            activePanel.style.removeProperty('transition');
+            activePanel.classList.remove('page-enter-from-left', 'page-enter-from-right');
+            void activePanel.offsetWidth;
+            activePanel.classList.add(direction < 0 ? 'page-enter-from-right' : 'page-enter-from-left');
+            const clearPageEntry = event => {
+                if (event.target !== activePanel) return;
+                activePanel.classList.remove('page-enter-from-left', 'page-enter-from-right');
+                activePanel.removeEventListener('animationend', clearPageEntry);
+            };
+            activePanel.addEventListener('animationend', clearPageEntry);
         }
-        window.handleSwipe = handleSwipe;
 
         const pullRefreshHint = document.getElementById('pullRefreshHint');
-        const grid = document.getElementById('gridAnime');
         let pullRefreshTracking = false;
         let pullRefreshReady = false;
 
@@ -686,17 +632,27 @@
             return document.scrollingElement?.scrollTop || window.scrollY || 0;
         }
 
-        function resetSwipeClass() {
-            if (!grid) return;
-            grid.classList.remove('swipe-left', 'swipe-right');
+        function resetPageDrag() {
+            if (touchStartPanel) {
+                touchStartPanel.style.removeProperty('transform');
+                touchStartPanel.style.removeProperty('animation');
+                touchStartPanel.style.removeProperty('transition');
+                touchStartPanel.classList.remove('page-dragging');
+                touchStartPanel = null;
+            }
         }
 
         if (swipeArea) {
             const handleTouchStart = event => {
                 if (event.touches.length !== 1) return;
+                const target = event.target;
+                const isInteractive = target instanceof Element
+                    && target.closest('input, textarea, select, button, a, [contenteditable="true"]');
+                touchStartPanel = isInteractive ? null : swipeArea.querySelector('.view-panel.active');
                 touchStartX = event.touches[0].clientX;
                 touchStartY = event.touches[0].clientY;
-                touchStartTime = Date.now();
+                horizontalSwipeTracking = false;
+                pageTransitionCommitted = false;
                 pullRefreshTracking = getScrollTop() <= 0;
                 pullRefreshReady = false;
                 if (pullRefreshHint) {
@@ -725,27 +681,39 @@
                     }
                 }
 
-                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-                    event.preventDefault();
+                if (!horizontalSwipeTracking
+                    && !pageTransitionCommitted
+                    && touchStartPanel
+                    && Math.abs(dx) > Math.abs(dy)
+                    && Math.abs(dx) > 8) {
+                    horizontalSwipeTracking = true;
+                    touchStartPanel.classList.add('page-dragging');
+                }
+
+                if (!pageTransitionCommitted && horizontalSwipeTracking) {
+                    const distanceToEdge = dx < 0
+                        ? touchStartX
+                        : window.innerWidth - touchStartX;
+                    const progress = Math.min(1, Math.abs(dx) / Math.max(1, distanceToEdge));
+                    const direction = dx < 0 ? -1 : 1;
+                    touchStartPanel.style.animation = 'none';
+                    touchStartPanel.style.transition = 'none';
+                    touchStartPanel.style.transform = `translate3d(${direction * window.innerWidth * progress}px, 0, 0)`;
+
+                    if (progress >= 1) {
+                        pageTransitionCommitted = true;
+                        commitSwipe(direction);
+                    }
                 }
             };
 
             const handleTouchEnd = event => {
-                const touch = event.changedTouches[0];
-                const dx = touch.clientX - touchStartX;
-                const dy = touch.clientY - touchStartY;
-                const duration = Date.now() - touchStartTime;
-                if (grid) {
-                    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) >= 40) {
-                        grid.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
-                        window.setTimeout(resetSwipeClass, 220);
-                    }
-                }
-                if (pullRefreshReady) {
+                if (event.type === 'touchend' && pullRefreshReady) {
                     window.location.reload();
-                } else {
-                    handleSwipe(dx, dy, duration);
                 }
+                resetPageDrag();
+                horizontalSwipeTracking = false;
+                pageTransitionCommitted = false;
                 pullRefreshTracking = false;
                 pullRefreshReady = false;
                 if (pullRefreshHint) {
@@ -756,6 +724,7 @@
             swipeArea.addEventListener('touchstart', handleTouchStart, { passive: true });
             swipeArea.addEventListener('touchmove', handleTouchMove, { passive: false });
             swipeArea.addEventListener('touchend', handleTouchEnd, { passive: true });
+            swipeArea.addEventListener('touchcancel', handleTouchEnd, { passive: true });
         }
     </script>
 

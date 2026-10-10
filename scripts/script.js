@@ -1,4 +1,12 @@
 ﻿// Add Anime in the list
+function formatMovieDuration(durationMinutes) {
+    const totalMinutes = Number(durationMinutes);
+    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '00:00:00';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = Math.floor(totalMinutes % 60);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+}
+
 function showAppToast(message, type = 'info') {
     const toast = document.getElementById('appToast');
     if (!toast) return;
@@ -581,7 +589,7 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
             const nbsaisons = 1;
             const detailsepsaison = '';
             const isMovie = (searchData?.type === 'Film') || (film == 1);
-            const dureeVal = isMovie ? (Number(searchData?.duration || duree || 0) || '00:00:00') : '00:00:00';
+            const dureeVal = isMovie ? formatMovieDuration(searchData?.duration || duree) : '00:00:00';
             const filmFlag = isMovie ? true : false;
             const added = await addAnime(
                 searchData?.id || id,
@@ -1258,7 +1266,7 @@ function selectSearchResult(item) {
         addButton.textContent = 'Ajout...';
         const nbepisodes = Number(item.nbepisodes) || 0;
         const isMovie = item.type === 'Film';
-        const dureeVal = isMovie ? (Number(item.duration || 0) || '00:00:00') : '00:00:00';
+        const dureeVal = isMovie ? formatMovieDuration(item.duration) : '00:00:00';
         const added = await addAnime(
             item.id,
             item.coverImage || '',
