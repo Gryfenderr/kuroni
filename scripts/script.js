@@ -1,11 +1,32 @@
 ﻿// Add Anime in the list
+const appToastQueue = [];
+const maxVisibleAppToasts = 3;
+
 function showAppToast(message, type = 'info') {
-    const toast = document.getElementById('appToast');
-    if (!toast) return;
-    toast.textContent = message;
-    toast.className = `app-toast ${type} visible`;
-    window.clearTimeout(showAppToast.timeout);
-    showAppToast.timeout = window.setTimeout(() => toast.classList.remove('visible'), 3600);
+    appToastQueue.push({ message, type });
+    displayQueuedAppToasts();
+}
+
+function displayQueuedAppToasts() {
+    const container = document.getElementById('appToastContainer');
+    if (!container) return;
+
+    while (appToastQueue.length && container.children.length < maxVisibleAppToasts) {
+        const { message, type } = appToastQueue.shift();
+        const toast = document.createElement('div');
+        toast.className = `app-toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        window.requestAnimationFrame(() => toast.classList.add('visible'));
+
+        window.setTimeout(() => {
+            toast.classList.remove('visible');
+            window.setTimeout(() => {
+                toast.remove();
+                displayQueuedAppToasts();
+            }, 300);
+        }, 3600);
+    }
 }
 
 function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel = 'Confirmer') {
@@ -1061,6 +1082,222 @@ async function loadSettingsSummary() {
     document.getElementById('settingsDroppedCount').textContent = droppedResult.count || 0;
 }
 
+async function exportKurolisteText() {
+    const username = sessionStorage.getItem('username');
+    if (!username) {
+        showAppToast('Impossible de déterminer le compte de la Kuroliste.', 'error');
+        return;
+    }
+
+    const tableName = 'list' + username.toLowerCase();
+    const { data, error } = await Supabase
+        .from(tableName)
+        .select('statut, nompref, nomromaji, nomenglish')
+        .in('statut', ['finished', 'watching', 'toview']);
+
+    if (error) {
+        console.error('Impossible d’exporter la Kuroliste :', error);
+        showAppToast('Impossible de télécharger la Kuroliste.', 'error');
+        return;
+    }
+
+    const sections = [
+        { status: 'finished', title: 'VUS' },
+        { status: 'watching', title: 'EN COURS' },
+        { status: 'toview', title: 'À VOIR' }
+    ];
+    const lines = ['KUROLISTE'];
+
+    sections.forEach(({ status, title }) => {
+        const titles = (data || [])
+            .filter(anime => anime.statut === status)
+            .map(anime => anime.nompref || anime.nomromaji || anime.nomenglish)
+            .filter(Boolean)
+            .sort((first, second) => first.localeCompare(second, 'fr', { sensitivity: 'base' }));
+
+        lines.push('', title, ...titles.map(animeTitle => `- ${animeTitle}`));
+    });
+
+    const file = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const downloadUrl = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    const safeUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    link.href = downloadUrl;
+    link.download = `kuroliste-${safeUsername || 'export'}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+    showAppToast('La Kuroliste a été téléchargée.', 'success');
+}
+
+async function fetchAllKurolisteRows(tableName, columns = '*') {
+    const rows = [];
+    const pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await Supabase
+            .from(tableName)
+            .select(columns)
+            .order('id', { ascending: true })
+            .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) return rows;
+    }
+}
+
+function downloadKurolisteJson(entries, username) {
+    const backup = {
+        format: 'kuroliste',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        entries
+    };
+    const file = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const downloadUrl = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    const safeUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    link.href = downloadUrl;
+    link.download = `kuroliste-${safeUsername || 'export'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+}
+
+async function exportKurolisteJson() {
+    const username = sessionStorage.getItem('username');
+    if (!username) {
+        showAppToast('Impossible de déterminer le compte de la Kuroliste.', 'error');
+        return;
+    }
+
+    try {
+        const entries = await fetchAllKurolisteRows(`list${username.toLowerCase()}`);
+        downloadKurolisteJson(entries, username);
+        showAppToast(`${entries.length} anime exporté${entries.length === 1 ? '' : 's'} en sauvegarde JSON.`, 'success');
+    } catch (error) {
+        console.error('Impossible de créer la sauvegarde JSON de la Kuroliste :', error);
+        showAppToast('Impossible de télécharger la sauvegarde de la Kuroliste.', 'error');
+    }
+}
+
+const KUROLISTE_STATUSES = new Set(['toview', 'next', 'watching', 'finished', 'waiting', 'dropped', 'restart', 'again']);
+const KUROLISTE_IMPORT_FIELDS = [
+    'idanime', 'urlimg', 'nomnative', 'nomromaji', 'nomenglish', 'languepref', 'nompref',
+    'statut', 'nbsaisons', 'nbepisodes', 'saisonencours', 'epencours', 'detailsepparsaison',
+    'film', 'duree', 'favori', 'flag', 'caption'
+];
+
+function normalizeKurolisteImportEntry(entry) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new TypeError('Une entrée de la sauvegarde n’est pas valide.');
+    }
+    if (typeof entry.nompref !== 'string' || !entry.nompref.trim()) {
+        throw new TypeError('Une entrée de la sauvegarde n’a pas de titre valide.');
+    }
+    if (!KUROLISTE_STATUSES.has(entry.statut)) {
+        throw new TypeError(`Statut invalide pour « ${entry.nompref} ».`);
+    }
+
+    const normalized = {};
+    for (const field of KUROLISTE_IMPORT_FIELDS) {
+        if (field === 'caption') {
+            if (typeof entry[field] === 'string') normalized.caption = entry[field];
+            continue;
+        }
+        if (['nomnative', 'nomromaji', 'nomenglish', 'languepref', 'nompref', 'urlimg', 'detailsepparsaison', 'duree'].includes(field)) {
+            if (entry[field] !== null && entry[field] !== undefined && typeof entry[field] !== 'string') {
+                throw new TypeError(`La valeur « ${field} » de « ${entry.nompref} » n’est pas valide.`);
+            }
+            if (entry[field] !== undefined) normalized[field] = entry[field];
+            continue;
+        }
+        if (['idanime', 'nbsaisons', 'nbepisodes', 'saisonencours', 'epencours', 'film', 'favori', 'flag'].includes(field)) {
+            const value = entry[field];
+            if (value === undefined) continue;
+            if (value === null || value === '') {
+                normalized[field] = null;
+                continue;
+            }
+            const number = Number(value);
+            if (!Number.isSafeInteger(number) || number < 0) {
+                throw new TypeError(`La valeur « ${field} » de « ${entry.nompref} » n’est pas valide.`);
+            }
+            normalized[field] = number;
+        }
+    }
+    normalized.nompref = entry.nompref.trim();
+    normalized.statut = entry.statut;
+    return normalized;
+}
+
+function getKurolisteEntryKeys(entry) {
+    const animeId = Number(entry.idanime);
+    const keys = [`title:${entry.nompref.trim().toLocaleLowerCase('fr-FR')}`];
+    if (Number.isSafeInteger(animeId) && animeId > 0) keys.push(`anilist:${animeId}`);
+    return keys;
+}
+
+async function importKurolisteJson(file) {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) {
+        showAppToast('Le fichier de sauvegarde dépasse la limite de 20 Mo.', 'error');
+        return;
+    }
+
+    const username = sessionStorage.getItem('username');
+    if (!username) {
+        showAppToast('Impossible de déterminer le compte de la Kuroliste.', 'error');
+        return;
+    }
+
+    let insertedCount = 0;
+    try {
+        const backup = JSON.parse(await file.text());
+        if (backup?.format !== 'kuroliste' || backup.version !== 1 || !Array.isArray(backup.entries)) {
+            throw new TypeError('Ce fichier n’est pas une sauvegarde Kuroliste reconnue.');
+        }
+        if (backup.entries.length > 10000) {
+            throw new RangeError('La sauvegarde contient trop d’entrées.');
+        }
+        const importedEntries = backup.entries.map(normalizeKurolisteImportEntry);
+        const tableName = `list${username.toLowerCase()}`;
+        const currentEntries = await fetchAllKurolisteRows(tableName, 'idanime, nompref');
+        const existingKeys = new Set(currentEntries.flatMap(getKurolisteEntryKeys));
+        const newEntries = importedEntries.filter(entry => {
+            const keys = getKurolisteEntryKeys(entry);
+            if (keys.some(key => existingKeys.has(key))) return false;
+            keys.forEach(key => existingKeys.add(key));
+            return true;
+        });
+
+        for (let offset = 0; offset < newEntries.length; offset += 100) {
+            const batch = newEntries.slice(offset, offset + 100);
+            let { error } = await Supabase.from(tableName).insert(batch);
+            if (error && (error.code === '42703' || error.code === 'PGRST204') && batch.some(entry => 'caption' in entry)) {
+                const withoutCaption = batch.map(({ caption, ...entry }) => entry);
+                ({ error } = await Supabase.from(tableName).insert(withoutCaption));
+            }
+            if (error) throw error;
+            insertedCount += batch.length;
+        }
+
+        if (insertedCount) {
+            await showView('gridAnime');
+            await selectList(parseFilter(sessionStorage.getItem('currentListFilter') || 'toview,next,waiting,dropped,restart,again'));
+            loadSettingsSummary();
+        }
+        showAppToast(`${insertedCount} anime restauré${insertedCount === 1 ? '' : 's'} · ${importedEntries.length - insertedCount} doublon${importedEntries.length - insertedCount === 1 ? '' : 's'} ignoré${importedEntries.length - insertedCount === 1 ? '' : 's'}.`, 'success');
+    } catch (error) {
+        console.error('Impossible de restaurer la Kuroliste :', error);
+        const message = insertedCount
+            ? `Import interrompu après ${insertedCount} anime. Vérifie la liste avant de relancer l’import.`
+            : 'Restauration impossible : fichier invalide ou erreur de base de données.';
+        showAppToast(message, 'error');
+    }
+}
+
 async function getcountrowswatching() {
     let tablename = 'list' + sessionStorage.getItem('username').toLowerCase();
     const { count, error } = await Supabase
@@ -1188,6 +1425,7 @@ function clearSearchResults(message = 'Commencez une recherche pour afficher les
 }
 
 let selectedSearchAnime = null;
+let searchRequestId = 0;
 
 function renderSearchResults(items) {
     const results = document.getElementById('searchResults');
@@ -1299,6 +1537,7 @@ function selectSearchResult(item) {
 }
 
 async function searchAnime(query) {
+    const requestId = ++searchRequestId;
     if (!query) {
         clearSearchResults();
         return;
@@ -1314,6 +1553,7 @@ async function searchAnime(query) {
                     native
                 }
                 coverImage {
+                    extraLarge
                     medium
                     large
                 }
@@ -1338,6 +1578,10 @@ async function searchAnime(query) {
             body: JSON.stringify({ query: gql, variables })
         });
         const data = await response.json();
+        if (requestId !== searchRequestId) return;
+        if (!response.ok || data?.errors?.length) {
+            throw new Error(data?.errors?.map(error => error.message).join('; ') || `HTTP ${response.status}`);
+        }
         const media = data?.data?.Page?.media || [];
         const items = media.map(anime => {
             const isMovie = anime.format === 'MOVIE';
@@ -1352,7 +1596,7 @@ async function searchAnime(query) {
                     ? (anime.duration ? `${anime.duration} min` : 'Durée inconnue')
                     : `${anime.episodes || '?'} Ep`,
                 type,
-                coverImage: anime.coverImage?.large || anime.coverImage?.medium || '',
+                coverImage: anime.coverImage?.extraLarge || anime.coverImage?.large || anime.coverImage?.medium || '',
                 nbepisodes: anime.episodes || 0,
                 duration: anime.duration || 0,
                 year: anime.seasonYear || '',
@@ -1361,22 +1605,1369 @@ async function searchAnime(query) {
         });
         renderSearchResults(items);
     } catch (err) {
+        if (requestId !== searchRequestId) return;
         console.error('Erreur recherche AniList :', err);
         showAppToast('La recherche est momentanément indisponible.', 'error');
         clearSearchResults('Erreur lors de la recherche. Réessayez.');
     }
 }
 
+const KUROCAL_FAVORITES_KEY = 'kurocalFavorites';
+const KUROCAL_HIDE_HENTAI_KEY = 'kurocalHideHentai';
+const KUROCAL_SCHEDULE_QUERY = `query ($page: Int!, $from: Int!, $to: Int!) {
+    Page(page: $page, perPage: 50) {
+        pageInfo {
+            hasNextPage
+        }
+        airingSchedules(airingAt_greater: $from, airingAt_lesser: $to, sort: TIME) {
+            airingAt
+            episode
+            media {
+                id
+                title {
+                    romaji
+                    english
+                    native
+                }
+                coverImage {
+                    extraLarge
+                    large
+                    medium
+                }
+                format
+                episodes
+                duration
+                seasonYear
+                genres
+                isAdult
+                trailer {
+                    id
+                    site
+                }
+                description
+            }
+        }
+    }
+}`;
+const KUROCAL_NEW_RELEASES_QUERY = `query ($after: FuzzyDateInt!) {
+    Page(page: 1, perPage: 50) {
+        media(type: ANIME, status: NOT_YET_RELEASED, startDate_greater: $after, sort: START_DATE) {
+            id
+            title {
+                romaji
+                english
+                native
+            }
+            coverImage {
+                extraLarge
+                large
+                medium
+            }
+            format
+            episodes
+            duration
+            seasonYear
+            startDate {
+                year
+                month
+                day
+            }
+            genres
+            isAdult
+            trailer {
+                id
+                site
+            }
+            description
+        }
+    }
+}`;
+const KUROCAL_FAVORITE_SCHEDULE_QUERY = `query ($ids: [Int]!) {
+    Page(page: 1, perPage: 50) {
+        media(id_in: $ids, type: ANIME) {
+            id
+            episodes
+            genres
+            isAdult
+            airingSchedule(notYetAired: true, page: 1, perPage: 50) {
+                nodes {
+                    airingAt
+                    episode
+                }
+            }
+        }
+    }
+}`;
+
+let kurocalWeekStart = getKurocalWeekStart(new Date());
+let kurocalSelectedDate = new Date();
+let kurocalScheduleCache = new Map();
+let kurocalScheduleItems = [];
+let kurocalScheduleRequestId = 0;
+let kurocalOverviewItems = null;
+let kurocalOverviewRequestId = 0;
+let kurocalNewReleaseItems = null;
+let kurocalNewReleaseRequestId = 0;
+let kurocalFavoriteScheduleItems = null;
+let kurocalFavoriteScheduleRequestId = 0;
+let kurocalReturnView = 'gridAnime';
+let kurocalCurrentMedia = null;
+let kurocalCurrentAiring = null;
+let kurocalFavoriteOnly = false;
+let kurocalSlideDirection = '';
+let kurocalScheduleDisplayMode = 'date';
+let kurocalCountdownInterval = null;
+let kurocalFavoritesCountdownInterval = null;
+let kurocalTranslationRequestId = 0;
+let kurocalSynopsisTranslationCache = new Map();
+let kurocalSynopsisOriginal = '';
+let kurocalSynopsisTranslated = false;
+
+function getKurocalFavoritesStorageKey() {
+    const username = sessionStorage.getItem('username') || 'default';
+    return `${KUROCAL_FAVORITES_KEY}:${username.toLowerCase()}`;
+}
+
+function getKurocalSettingStorageKey(setting) {
+    const username = sessionStorage.getItem('username') || 'default';
+    return `${setting}:${username.toLowerCase()}`;
+}
+
+function shouldHideKurocalHentai() {
+    return localStorage.getItem(getKurocalSettingStorageKey(KUROCAL_HIDE_HENTAI_KEY)) !== 'false';
+}
+
+function isKurocalHentai(media) {
+    return media?.isAdult === true || media?.genres?.some(genre => genre.toLowerCase() === 'hentai') === true;
+}
+
+function setKurocalHentaiFilter(enabled) {
+    const checkbox = document.getElementById('kurocalHideHentai');
+    try {
+        localStorage.setItem(getKurocalSettingStorageKey(KUROCAL_HIDE_HENTAI_KEY), String(enabled));
+    } catch (error) {
+        console.error('Impossible d’enregistrer le filtre hentai Kurocal :', error);
+        if (checkbox) checkbox.checked = !enabled;
+        showAppToast('Impossible d’enregistrer ce réglage sur cet appareil.', 'error');
+        return;
+    }
+
+    if (checkbox) checkbox.checked = enabled;
+    renderKurocalSchedule();
+    renderKurocalNewReleases();
+    if (document.getElementById('kurocalOverviewPanel')?.hidden === false) renderKurocalOverview();
+    if (document.getElementById('kurocalFavoritesPanel')?.hidden === false) {
+        renderKurocalFavorites();
+    }
+    showAppToast(enabled ? 'Les anime hentai sont masqués.' : 'Le filtre hentai est désactivé.', 'success');
+}
+
+function getKurocalWeekStart(date) {
+    const weekStart = new Date(date);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+    return weekStart;
+}
+
+function addKurocalDays(date, amount) {
+    const result = new Date(date);
+    result.setDate(result.getDate() + amount);
+    return result;
+}
+
+function getKurocalDateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getKurocalTitle(media) {
+    return media?.title?.english || media?.title?.romaji || media?.title?.native || 'Titre inconnu';
+}
+
+function getKurocalCover(media) {
+    return media?.coverImage?.extraLarge || media?.coverImage?.large || media?.coverImage?.medium || '';
+}
+
+function formatKurocalDate(date, options = { weekday: 'long', day: 'numeric', month: 'long' }) {
+    return new Intl.DateTimeFormat('fr-FR', options).format(date);
+}
+
+async function requestAniList(query, variables = {}) {
+    const response = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ query, variables })
+    });
+    const result = await response.json();
+    if (!response.ok || result.errors?.length) {
+        const reason = result.errors?.map(error => error.message).join('; ') || `HTTP ${response.status}`;
+        throw new Error(`AniList: ${reason}`);
+    }
+    return result.data;
+}
+
+function getKurocalFavorites() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(getKurocalFavoritesStorageKey()) || '[]');
+        if (!Array.isArray(saved)) throw new TypeError('Les favoris Kurocal ne sont pas une liste valide.');
+        return saved.filter(media => media && media.id != null);
+    } catch (error) {
+        console.error('Impossible de lire les favoris Kurocal :', error);
+        showAppToast('Impossible de lire les favoris Kurocal enregistrés sur cet appareil.', 'error');
+        return [];
+    }
+}
+
+function isKurocalFavorite(mediaId) {
+    return getKurocalFavorites().some(media => String(media.id) === String(mediaId));
+}
+
+function exportKurocalFavorites() {
+    const favorites = getKurocalFavorites();
+    const backup = {
+        format: 'kurocal-favorites',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        favorites
+    };
+    const file = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const downloadUrl = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    const username = (sessionStorage.getItem('username') || 'export').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    link.href = downloadUrl;
+    link.download = `kurocal-favoris-${username || 'export'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+    showAppToast(`${favorites.length} favori${favorites.length === 1 ? '' : 's'} Kurocal exporté${favorites.length === 1 ? '' : 's'}.`, 'success');
+}
+
+function normalizeImportedKurocalFavorite(media) {
+    if (!media || typeof media !== 'object' || !Number.isInteger(Number(media.id)) || Number(media.id) <= 0) {
+        throw new TypeError('Un favori ne contient pas d’identifiant AniList valide.');
+    }
+    if (!media.title || typeof media.title !== 'object') {
+        throw new TypeError('Un favori ne contient pas de titre valide.');
+    }
+
+    const stringOrEmpty = value => typeof value === 'string' ? value : '';
+    const finiteNumberOrNull = value => Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : null;
+    const datePart = value => {
+        const number = finiteNumberOrNull(value);
+        return number !== null && Number.isInteger(number) ? number : null;
+    };
+    const cover = media.coverImage && typeof media.coverImage === 'object' ? media.coverImage : {};
+    const trailer = media.trailer && typeof media.trailer === 'object' ? media.trailer : null;
+    const startDate = media.startDate && typeof media.startDate === 'object' ? media.startDate : {};
+
+    return {
+        id: Number(media.id),
+        title: {
+            english: stringOrEmpty(media.title.english),
+            romaji: stringOrEmpty(media.title.romaji),
+            native: stringOrEmpty(media.title.native)
+        },
+        coverImage: {
+            extraLarge: stringOrEmpty(cover.extraLarge),
+            large: stringOrEmpty(cover.large),
+            medium: stringOrEmpty(cover.medium)
+        },
+        format: stringOrEmpty(media.format),
+        episodes: finiteNumberOrNull(media.episodes),
+        duration: finiteNumberOrNull(media.duration),
+        seasonYear: finiteNumberOrNull(media.seasonYear),
+        startDate: {
+            year: datePart(startDate.year),
+            month: datePart(startDate.month),
+            day: datePart(startDate.day)
+        },
+        genres: Array.isArray(media.genres) ? media.genres.filter(genre => typeof genre === 'string') : [],
+        isAdult: media.isAdult === true,
+        trailer: trailer ? {
+            id: stringOrEmpty(trailer.id),
+            site: stringOrEmpty(trailer.site)
+        } : null,
+        description: stringOrEmpty(media.description)
+    };
+}
+
+async function importKurocalFavorites(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        showAppToast('Le fichier de favoris dépasse la limite de 5 Mo.', 'error');
+        return;
+    }
+
+    try {
+        const backup = JSON.parse(await file.text());
+        if (backup?.format !== 'kurocal-favorites' || backup.version !== 1 || !Array.isArray(backup.favorites)) {
+            throw new TypeError('Ce fichier n’est pas un export Kurocal reconnu.');
+        }
+
+        const imported = backup.favorites.map(normalizeImportedKurocalFavorite);
+        const current = getKurocalFavorites();
+        const existingIds = new Set(current.map(media => String(media.id)));
+        const additions = imported.filter(media => {
+            const id = String(media.id);
+            if (existingIds.has(id)) return false;
+            existingIds.add(id);
+            return true;
+        });
+        const merged = [...current, ...additions];
+        localStorage.setItem(getKurocalFavoritesStorageKey(), JSON.stringify(merged));
+        kurocalFavoriteScheduleRequestId++;
+        kurocalFavoriteScheduleItems = null;
+        renderKurocalSchedule();
+        renderKurocalNewReleases();
+        if (document.getElementById('kurocalOverviewPanel')?.hidden === false) renderKurocalOverview();
+        if (document.getElementById('kurocalFavoritesPanel')?.hidden === false) renderKurocalFavorites();
+        if (kurocalCurrentMedia) updateKurocalDetailFavoriteButton();
+        showAppToast(`${additions.length} nouveau${additions.length === 1 ? '' : 'x'} favori${additions.length === 1 ? '' : 's'} importé${additions.length === 1 ? '' : 's'}.`, 'success');
+    } catch (error) {
+        console.error('Impossible d’importer les favoris Kurocal :', error);
+        showAppToast('Import impossible : fichier invalide ou stockage indisponible.', 'error');
+    }
+}
+
+function toggleKurocalFavorite(media) {
+    const favorites = getKurocalFavorites();
+    const isFavorite = favorites.some(item => String(item.id) === String(media.id));
+    const updated = isFavorite
+        ? favorites.filter(item => String(item.id) !== String(media.id))
+        : [...favorites, media];
+    try {
+        localStorage.setItem(getKurocalFavoritesStorageKey(), JSON.stringify(updated));
+    } catch (error) {
+        console.error('Impossible d’enregistrer les favoris Kurocal :', error);
+        showAppToast('Impossible d’enregistrer ce favori sur cet appareil.', 'error');
+        return;
+    }
+    kurocalFavoriteScheduleRequestId++;
+    kurocalFavoriteScheduleItems = null;
+    renderKurocalSchedule();
+    renderKurocalNewReleases();
+    if (document.getElementById('kurocalOverviewPanel')?.hidden === false) renderKurocalOverview();
+    if (document.getElementById('kurocalFavoritesPanel')?.hidden === false) renderKurocalFavorites();
+    if (kurocalCurrentMedia && String(kurocalCurrentMedia.id) === String(media.id)) {
+        updateKurocalDetailFavoriteButton();
+    }
+}
+
+function makeKurocalCard(media, meta, airing = null) {
+    const card = document.createElement('article');
+    card.className = 'kurocal-card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', `${getKurocalTitle(media)} — ${meta}`);
+    card.addEventListener('click', () => openKurocalDetail(media, airing));
+    card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openKurocalDetail(media, airing);
+        }
+    });
+
+    const poster = document.createElement('div');
+    poster.className = 'kurocal-card-poster';
+    const image = document.createElement('img');
+    image.src = getKurocalCover(media);
+    image.alt = '';
+    image.loading = 'lazy';
+    poster.appendChild(image);
+
+    const metaBadge = document.createElement('span');
+    metaBadge.className = 'kurocal-card-meta';
+    metaBadge.textContent = meta;
+    poster.appendChild(metaBadge);
+
+    const favoriteButton = document.createElement('button');
+    favoriteButton.type = 'button';
+    favoriteButton.className = 'kurocal-card-favorite';
+    favoriteButton.classList.toggle('is-favorite', isKurocalFavorite(media.id));
+    favoriteButton.setAttribute('aria-label', isKurocalFavorite(media.id) ? 'Retirer des favoris Kurocal' : 'Ajouter aux favoris Kurocal');
+    favoriteButton.title = favoriteButton.getAttribute('aria-label');
+    favoriteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">star</span>';
+    favoriteButton.addEventListener('click', event => {
+        event.stopPropagation();
+        toggleKurocalFavorite(media);
+    });
+    poster.appendChild(favoriteButton);
+    card.appendChild(poster);
+
+    const title = document.createElement('h3');
+    title.textContent = getKurocalTitle(media);
+    card.appendChild(title);
+    return card;
+}
+
+function renderKurocalCardSkeletons(grid, count = 6) {
+    grid.replaceChildren();
+    grid.setAttribute('aria-busy', 'true');
+    for (let index = 0; index < count; index++) {
+        const card = document.createElement('div');
+        card.className = 'kurocal-card kurocal-card-skeleton';
+        card.setAttribute('aria-hidden', 'true');
+        card.innerHTML = '<span class="kurocal-skeleton-poster"></span><span class="kurocal-skeleton-title"></span>';
+        grid.appendChild(card);
+    }
+}
+
+function renderKurocalOverviewNewReleases() {
+    const grid = document.getElementById('kurocalOverviewNewGrid');
+    const message = document.getElementById('kurocalOverviewNewMessage');
+    if (!grid || !message) return;
+    grid.replaceChildren();
+    if (kurocalNewReleaseItems === null) {
+        renderKurocalCardSkeletons(grid, 3);
+        message.textContent = '';
+        return;
+    }
+
+    const releases = kurocalNewReleaseItems
+        .filter(media => hasKurocalFullStartDate(media.startDate))
+        .filter(media => !shouldHideKurocalHentai() || !isKurocalHentai(media))
+        .sort((first, second) => {
+            const firstDate = new Date(first.startDate.year, first.startDate.month - 1, first.startDate.day);
+            const secondDate = new Date(second.startDate.year, second.startDate.month - 1, second.startDate.day);
+            return firstDate - secondDate;
+        })
+        .slice(0, 3);
+
+    releases.forEach(media => {
+        const date = new Date(media.startDate.year, media.startDate.month - 1, media.startDate.day);
+        grid.appendChild(makeKurocalCard(media, formatKurocalDate(date, { day: 'numeric', month: 'short' })));
+    });
+    message.textContent = releases.length ? '' : 'Aucune nouveauté datée à afficher pour le moment.';
+}
+
+function renderKurocalOverview() {
+    const todayGrid = document.getElementById('kurocalOverviewTodayGrid');
+    const todayMessage = document.getElementById('kurocalOverviewTodayMessage');
+    const upcomingGrid = document.getElementById('kurocalOverviewUpcomingGrid');
+    const upcomingMessage = document.getElementById('kurocalOverviewUpcomingMessage');
+    if (!todayGrid || !todayMessage || !upcomingGrid || !upcomingMessage) return;
+    todayGrid.replaceChildren();
+    upcomingGrid.replaceChildren();
+    todayGrid.setAttribute('aria-busy', 'false');
+    upcomingGrid.setAttribute('aria-busy', 'false');
+
+    if (kurocalOverviewItems === null) {
+        renderKurocalCardSkeletons(todayGrid, 3);
+        renderKurocalCardSkeletons(upcomingGrid, 6);
+        todayMessage.textContent = '';
+        upcomingMessage.textContent = '';
+        renderKurocalOverviewNewReleases();
+        return;
+    }
+
+    const today = new Date();
+    const todayKey = getKurocalDateKey(today);
+    const upcomingLimit = addKurocalDays(today, 7);
+    const items = kurocalOverviewItems
+        .filter(item => item.media)
+        .filter(item => !shouldHideKurocalHentai() || !isKurocalHentai(item.media))
+        .filter(item => new Date(item.airingAt * 1000) >= today && new Date(item.airingAt * 1000) < upcomingLimit)
+        .sort((first, second) => first.airingAt - second.airingAt);
+    const todayItems = items.filter(item => getKurocalDateKey(new Date(item.airingAt * 1000)) === todayKey);
+    const upcomingItems = items.filter(item => getKurocalDateKey(new Date(item.airingAt * 1000)) !== todayKey);
+
+    todayItems.forEach(item => {
+        const airingDate = new Date(item.airingAt * 1000);
+        const time = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(airingDate);
+        todayGrid.appendChild(makeKurocalCard(item.media, `${time} · Ép. ${item.episode}`, item));
+    });
+    todayMessage.textContent = todayItems.length ? '' : 'Aucune diffusion prévue aujourd’hui.';
+
+    let currentDay = '';
+    upcomingItems.forEach(item => {
+        const airingDate = new Date(item.airingAt * 1000);
+        const dayKey = getKurocalDateKey(airingDate);
+        if (dayKey !== currentDay) {
+            currentDay = dayKey;
+            const heading = document.createElement('h4');
+            heading.className = 'kurocal-overview-day';
+            heading.textContent = formatKurocalDate(airingDate);
+            upcomingGrid.appendChild(heading);
+        }
+        const time = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(airingDate);
+        upcomingGrid.appendChild(makeKurocalCard(item.media, `${time} · Ép. ${item.episode}`, item));
+    });
+    upcomingMessage.textContent = upcomingItems.length ? '' : 'Aucune autre diffusion prévue dans les 7 prochains jours.';
+    renderKurocalOverviewNewReleases();
+}
+
+async function loadKurocalOverview() {
+    const todayGrid = document.getElementById('kurocalOverviewTodayGrid');
+    const todayMessage = document.getElementById('kurocalOverviewTodayMessage');
+    if (!todayGrid || !todayMessage) return;
+    if (kurocalOverviewItems !== null) {
+        renderKurocalOverview();
+        if (kurocalNewReleaseItems === null) await loadKurocalNewReleases();
+        renderKurocalOverviewNewReleases();
+        return;
+    }
+
+    const requestId = ++kurocalOverviewRequestId;
+    const now = new Date();
+    const from = Math.floor(now.getTime() / 1000);
+    const to = Math.floor(addKurocalDays(now, 7).getTime() / 1000);
+    const items = [];
+    let page = 1;
+    let hasNextPage = true;
+    renderKurocalOverview();
+    const newReleasesRequest = kurocalNewReleaseItems === null
+        ? loadKurocalNewReleases()
+        : Promise.resolve();
+
+    try {
+        while (hasNextPage && page <= 10) {
+            const data = await requestAniList(KUROCAL_SCHEDULE_QUERY, { page, from, to });
+            const result = data?.Page;
+            if (!result) throw new Error('Réponse AniList incomplète pour la vue À venir.');
+            items.push(...(result.airingSchedules || []).filter(item => item.media));
+            hasNextPage = Boolean(result.pageInfo?.hasNextPage);
+            page++;
+        }
+        if (requestId !== kurocalOverviewRequestId) return;
+        kurocalOverviewItems = items;
+        renderKurocalOverview();
+        if (hasNextPage) {
+            const message = document.getElementById('kurocalOverviewUpcomingMessage');
+            if (message) message.textContent = 'Affichage partiel : AniList a renvoyé plus de diffusions que la limite de chargement.';
+        }
+    } catch (error) {
+        if (requestId !== kurocalOverviewRequestId) return;
+        console.error('Impossible de charger la vue À venir de Kurocal :', error);
+        todayGrid.replaceChildren();
+        todayGrid.setAttribute('aria-busy', 'false');
+        todayMessage.textContent = 'Les diffusions sont momentanément indisponibles. Vérifie ta connexion puis réessaie.';
+        const upcomingGrid = document.getElementById('kurocalOverviewUpcomingGrid');
+        const upcomingMessage = document.getElementById('kurocalOverviewUpcomingMessage');
+        if (upcomingGrid) {
+            upcomingGrid.replaceChildren();
+            upcomingGrid.setAttribute('aria-busy', 'false');
+        }
+        if (upcomingMessage) upcomingMessage.textContent = '';
+        showAppToast('Impossible de charger les diffusions depuis AniList.', 'error');
+    }
+
+    await newReleasesRequest;
+    if (requestId === kurocalOverviewRequestId) {
+        renderKurocalOverviewNewReleases();
+    }
+}
+
+function renderKurocalWeekdays() {
+    const weekdayNav = document.getElementById('kurocalWeekdays');
+    const heading = document.getElementById('kurocalMonthHeading');
+    const selectedDateLabel = document.getElementById('kurocalSelectedDate');
+    if (!weekdayNav || !heading || !selectedDateLabel) return;
+
+    weekdayNav.replaceChildren();
+    const visibleWeekMiddle = addKurocalDays(kurocalWeekStart, 3);
+    heading.textContent = formatKurocalDate(visibleWeekMiddle, { month: 'long', year: 'numeric' });
+    heading.textContent = heading.textContent.charAt(0).toLocaleUpperCase('fr-FR') + heading.textContent.slice(1);
+    selectedDateLabel.textContent = formatKurocalDate(kurocalSelectedDate);
+
+    for (let index = 0; index < 7; index++) {
+        const date = addKurocalDays(kurocalWeekStart, index);
+        const key = getKurocalDateKey(date);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'kurocal-weekday';
+        button.classList.toggle('active', key === getKurocalDateKey(kurocalSelectedDate));
+        button.classList.toggle('is-today', key === getKurocalDateKey(new Date()));
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-selected', String(key === getKurocalDateKey(kurocalSelectedDate)));
+        button.setAttribute('aria-label', formatKurocalDate(date));
+
+        const weekday = document.createElement('span');
+        weekday.textContent = formatKurocalDate(date, { weekday: 'short' }).replace('.', '');
+        const day = document.createElement('strong');
+        day.textContent = String(date.getDate());
+        button.append(weekday, day);
+        button.addEventListener('click', () => {
+            kurocalSelectedDate = date;
+            renderKurocalWeekdays();
+            loadKurocalWeek();
+        });
+        weekdayNav.appendChild(button);
+    }
+    weekdayNav.classList.remove('slide-next', 'slide-previous');
+    if (kurocalSlideDirection) {
+        const directionClass = `slide-${kurocalSlideDirection}`;
+        weekdayNav.classList.add(directionClass);
+        window.setTimeout(() => weekdayNav.classList.remove(directionClass), 260);
+        kurocalSlideDirection = '';
+    }
+}
+
+function renderKurocalSchedule() {
+    const grid = document.getElementById('kurocalScheduleGrid');
+    const message = document.getElementById('kurocalScheduleMessage');
+    if (!grid || !message) return;
+    grid.replaceChildren();
+    grid.setAttribute('aria-busy', 'false');
+    const favoriteIds = new Set(getKurocalFavorites().map(media => String(media.id)));
+    const dayItems = kurocalScheduleItems
+        .filter(item => getKurocalDateKey(new Date(item.airingAt * 1000)) === getKurocalDateKey(kurocalSelectedDate))
+        .filter(item => !kurocalFavoriteOnly || favoriteIds.has(String(item.media.id)))
+        .filter(item => !shouldHideKurocalHentai() || !isKurocalHentai(item.media))
+        .sort((first, second) => first.airingAt - second.airingAt);
+
+    if (dayItems.length) {
+        message.textContent = '';
+        dayItems.forEach(item => {
+            const date = new Date(item.airingAt * 1000);
+            const time = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(date);
+            grid.appendChild(makeKurocalCard(item.media, `${time} · Ép. ${item.episode}`, item));
+        });
+    } else if (kurocalFavoriteOnly && kurocalScheduleItems.some(item => getKurocalDateKey(new Date(item.airingAt * 1000)) === getKurocalDateKey(kurocalSelectedDate))) {
+        message.textContent = 'Aucune sortie de tes favoris Kurocal ce jour-là.';
+    } else {
+        message.textContent = 'Aucune diffusion trouvée pour cette journée.';
+    }
+}
+
+async function loadKurocalWeek(weekStart = kurocalWeekStart) {
+    const message = document.getElementById('kurocalScheduleMessage');
+    const grid = document.getElementById('kurocalScheduleGrid');
+    if (!message || !grid) return;
+    const requestId = ++kurocalScheduleRequestId;
+    const requestWeekStart = new Date(weekStart);
+    const weekKey = getKurocalDateKey(requestWeekStart);
+    if (kurocalScheduleCache.has(weekKey)) {
+        kurocalScheduleItems = kurocalScheduleCache.get(weekKey);
+        renderKurocalSchedule();
+        return;
+    }
+
+    renderKurocalCardSkeletons(grid);
+    message.textContent = '';
+    const nextWeek = addKurocalDays(requestWeekStart, 7);
+    const from = Math.floor(requestWeekStart.getTime() / 1000);
+    const to = Math.floor(nextWeek.getTime() / 1000) - 1;
+    const items = [];
+    let page = 1;
+    let hasNextPage = true;
+    const maxPages = 10;
+
+    try {
+        while (hasNextPage && page <= maxPages) {
+            const data = await requestAniList(KUROCAL_SCHEDULE_QUERY, { page, from, to });
+            const result = data?.Page;
+            if (!result) throw new Error('Réponse AniList incomplète pour le calendrier.');
+            items.push(...(result.airingSchedules || []).filter(item => item.media));
+            hasNextPage = Boolean(result.pageInfo?.hasNextPage);
+            page++;
+        }
+        kurocalScheduleCache.set(weekKey, items);
+        if (requestId !== kurocalScheduleRequestId) return;
+        kurocalScheduleItems = items;
+        renderKurocalSchedule();
+        if (hasNextPage) {
+            message.textContent = 'Affichage partiel : AniList a renvoyé plus de diffusions que la limite de chargement.';
+        }
+    } catch (error) {
+        console.error('Impossible de charger les diffusions Kurocal :', error);
+        if (requestId !== kurocalScheduleRequestId) return;
+        grid.replaceChildren();
+        grid.setAttribute('aria-busy', 'false');
+        message.textContent = 'Le calendrier est momentanément indisponible. Vérifie ta connexion puis réessaie.';
+        showAppToast('Impossible de charger les diffusions depuis AniList.', 'error');
+    }
+}
+
+function renderKurocalNewReleases() {
+    const grid = document.getElementById('kurocalNewGrid');
+    const message = document.getElementById('kurocalNewMessage');
+    if (!grid || !message || kurocalNewReleaseItems === null) return;
+    grid.replaceChildren();
+    grid.setAttribute('aria-busy', 'false');
+    if (!kurocalNewReleaseItems.length) {
+        message.textContent = 'Aucune nouvelle sortie à afficher pour le moment.';
+        return;
+    }
+    message.textContent = '';
+    kurocalNewReleaseItems
+        .filter(media => hasKurocalFullStartDate(media.startDate))
+        .filter(media => !shouldHideKurocalHentai() || !isKurocalHentai(media))
+        .sort((first, second) => {
+            const firstDate = new Date(first.startDate.year, first.startDate.month - 1, first.startDate.day);
+            const secondDate = new Date(second.startDate.year, second.startDate.month - 1, second.startDate.day);
+            return firstDate - secondDate;
+        })
+        .forEach(media => {
+        const start = media.startDate;
+        const releaseDate = new Date(start.year, start.month - 1, start.day);
+        const meta = formatKurocalDate(releaseDate, { day: 'numeric', month: 'short', year: 'numeric' });
+        grid.appendChild(makeKurocalCard(media, meta));
+    });
+    if (!grid.children.length) message.textContent = 'Aucune nouvelle sortie avec une date précise à afficher pour le moment.';
+}
+
+function hasKurocalFullStartDate(startDate) {
+    if (!startDate?.year || !startDate?.month || !startDate?.day) return false;
+    const date = new Date(startDate.year, startDate.month - 1, startDate.day);
+    return date.getFullYear() === startDate.year &&
+        date.getMonth() === startDate.month - 1 &&
+        date.getDate() === startDate.day;
+}
+
+async function loadKurocalNewReleases() {
+    const grid = document.getElementById('kurocalNewGrid');
+    const message = document.getElementById('kurocalNewMessage');
+    if (!grid || !message) return;
+    if (kurocalNewReleaseItems !== null) {
+        renderKurocalNewReleases();
+        return;
+    }
+    const requestId = ++kurocalNewReleaseRequestId;
+    renderKurocalCardSkeletons(grid);
+    message.textContent = '';
+    try {
+        const afterDate = addKurocalDays(new Date(), -1);
+        const after = Number(`${afterDate.getFullYear()}${String(afterDate.getMonth() + 1).padStart(2, '0')}${String(afterDate.getDate()).padStart(2, '0')}`);
+        const data = await requestAniList(KUROCAL_NEW_RELEASES_QUERY, { after });
+        if (requestId !== kurocalNewReleaseRequestId) return;
+        const media = data?.Page?.media;
+        if (!Array.isArray(media)) throw new Error('Réponse AniList incomplète pour les prochaines sorties.');
+        kurocalNewReleaseItems = media.filter(item => hasKurocalFullStartDate(item.startDate));
+        renderKurocalNewReleases();
+    } catch (error) {
+        if (requestId !== kurocalNewReleaseRequestId) return;
+        console.error('Impossible de charger les nouvelles sorties Kurocal :', error);
+        grid.replaceChildren();
+        grid.setAttribute('aria-busy', 'false');
+        message.textContent = 'Les nouvelles sorties sont momentanément indisponibles. Réessaie plus tard.';
+        showAppToast('Impossible de charger les prochaines sorties depuis AniList.', 'error');
+    }
+}
+
+async function loadKurocalFavoriteSchedules(favorites, requestId) {
+    const savedById = new Map(favorites.map(media => [String(media.id), media]));
+    const ids = favorites.map(media => Number(media.id)).filter(Number.isInteger);
+    const chunks = [];
+    for (let index = 0; index < ids.length; index += 20) chunks.push(ids.slice(index, index + 20));
+
+    const results = [];
+    for (const chunk of chunks) {
+        const data = await requestAniList(KUROCAL_FAVORITE_SCHEDULE_QUERY, { ids: chunk });
+        const mediaItems = data?.Page?.media;
+        if (!Array.isArray(mediaItems)) throw new Error('Réponse AniList incomplète pour les favoris Kurocal.');
+        results.push(...mediaItems);
+    }
+
+    const scheduleItems = results.map(media => {
+        const saved = savedById.get(String(media.id)) || {};
+        const upcoming = (media.airingSchedule?.nodes || [])
+            .filter(item => item.airingAt && item.episode)
+            .sort((first, second) => first.airingAt - second.airingAt);
+        if (!upcoming.length) return { media: { ...saved, ...media }, episodes: [] };
+
+        const startEpisode = Number(upcoming[0].episode);
+        const episodeCount = Number(media.episodes) || 12;
+        const finalEpisode = media.episodes ? episodeCount : startEpisode + episodeCount - 1;
+        const episodeMap = new Map();
+        upcoming.forEach(item => {
+            if (item.episode <= finalEpisode) episodeMap.set(Number(item.episode), item);
+        });
+
+        const scheduleInterval = upcoming.length > 1
+            ? Math.max(1, Math.round((upcoming[1].airingAt - upcoming[0].airingAt) / (upcoming[1].episode - upcoming[0].episode)))
+            : 7 * 24 * 60 * 60;
+        let previous = upcoming[upcoming.length - 1];
+        for (let episode = Number(previous.episode) + 1; episode <= finalEpisode; episode++) {
+            const airingAt = previous.airingAt + scheduleInterval;
+            const projected = { episode, airingAt, projected: true };
+            if (!episodeMap.has(episode)) episodeMap.set(episode, projected);
+            previous = projected;
+        }
+
+        return {
+            media: { ...saved, ...media, genres: media.genres?.length ? media.genres : saved.genres, isAdult: media.isAdult ?? saved.isAdult },
+            episodes: [...episodeMap.values()].sort((first, second) => first.airingAt - second.airingAt)
+        };
+    });
+    if (requestId !== kurocalFavoriteScheduleRequestId) return;
+    kurocalFavoriteScheduleItems = scheduleItems;
+}
+
+function renderKurocalFavorites() {
+    const grid = document.getElementById('kurocalFavoritesList');
+    const empty = document.getElementById('kurocalFavoritesEmpty');
+    const message = document.getElementById('kurocalFavoritesMessage');
+    if (!grid || !empty || !message) return;
+    const favorites = getKurocalFavorites();
+    grid.replaceChildren();
+    window.clearInterval(kurocalFavoritesCountdownInterval);
+    kurocalFavoritesCountdownInterval = null;
+    if (!favorites.length) {
+        kurocalFavoriteScheduleRequestId++;
+        kurocalFavoriteScheduleItems = [];
+        message.hidden = true;
+        empty.hidden = false;
+        return;
+    }
+    empty.hidden = true;
+    if (!kurocalFavoriteScheduleItems) {
+        const requestId = ++kurocalFavoriteScheduleRequestId;
+        message.textContent = 'Chargement des épisodes de tes favoris…';
+        message.hidden = false;
+        return loadKurocalFavoriteSchedules(favorites, requestId)
+            .then(() => {
+                if (requestId === kurocalFavoriteScheduleRequestId) renderKurocalFavorites();
+            })
+            .catch(error => {
+                if (requestId !== kurocalFavoriteScheduleRequestId) return;
+                console.error('Impossible de charger le planning des favoris Kurocal :', error);
+                message.textContent = 'Impossible de charger le planning des favoris. Vérifie ta connexion puis réessaie.';
+                message.hidden = false;
+                showAppToast('Impossible de charger le planning des favoris depuis AniList.', 'error');
+            });
+        return;
+    }
+    message.hidden = true;
+
+    const favoriteIds = new Set(favorites.map(media => String(media.id)));
+    const datedEpisodes = kurocalFavoriteScheduleItems
+        .filter(item => favoriteIds.has(String(item.media.id)))
+        .filter(item => !shouldHideKurocalHentai() || !isKurocalHentai(item.media))
+        .flatMap(item => item.episodes.map(airing => ({ ...item, airing })))
+        .sort((first, second) => first.airing.airingAt - second.airing.airingAt);
+    if (!datedEpisodes.length) {
+        message.textContent = 'AniList ne fournit pas encore de date de diffusion pour tes favoris.';
+        message.hidden = false;
+        return;
+    }
+
+    let currentDay = '';
+    datedEpisodes.forEach(({ media, airing }) => {
+        const date = new Date(airing.airingAt * 1000);
+        const dayKey = getKurocalDateKey(date);
+        if (dayKey !== currentDay) {
+            currentDay = dayKey;
+            const dayHeading = document.createElement('h3');
+            dayHeading.className = 'kurocal-favorites-day';
+            dayHeading.textContent = formatKurocalDate(date);
+            grid.appendChild(dayHeading);
+        }
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'kurocal-favorite-row';
+        row.addEventListener('click', () => openKurocalDetail(media, airing));
+
+        const image = document.createElement('img');
+        image.src = getKurocalCover(media);
+        image.alt = '';
+        image.loading = 'lazy';
+
+        const information = document.createElement('span');
+        information.className = 'kurocal-favorite-row-info';
+        const title = document.createElement('strong');
+        title.textContent = getKurocalTitle(media);
+        const episode = document.createElement('span');
+        episode.className = 'kurocal-favorite-row-episode';
+        episode.textContent = `Épisode ${airing.episode}${airing.projected ? ' · date estimée' : ''}`;
+        const countdown = document.createElement('span');
+        countdown.className = 'kurocal-favorite-row-countdown';
+        const countdownLabel = document.createElement('span');
+        countdownLabel.className = 'kurocal-favorite-row-countdown-label';
+        countdownLabel.textContent = airing.projected ? 'Date estimée · sortie dans' : 'Sortie dans';
+        const countdownTime = document.createElement('time');
+        countdownTime.className = 'kurocal-favorite-row-time';
+        countdownTime.dateTime = date.toISOString();
+        countdownTime.dataset.airingAt = String(airing.airingAt);
+        countdown.append(countdownLabel, countdownTime);
+        information.append(title, episode, countdown);
+
+        row.append(image, information);
+        grid.appendChild(row);
+    });
+    updateKurocalFavoriteCountdowns();
+    kurocalFavoritesCountdownInterval = window.setInterval(updateKurocalFavoriteCountdowns, 60000);
+}
+
+function formatKurocalFavoriteCountdown(airingAt) {
+    const seconds = Math.max(0, airingAt - Math.floor(Date.now() / 1000));
+    if (!seconds) return 'Maintenant';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const parts = [];
+    if (days) parts.push(`${days} j`);
+    parts.push(`${String(hours).padStart(2, '0')} h`, `${String(minutes).padStart(2, '0')} min`);
+    return parts.join(' · ');
+}
+
+function updateKurocalFavoriteCountdowns() {
+    document.querySelectorAll('.kurocal-favorite-row-time[data-airing-at]').forEach(time => {
+        time.textContent = formatKurocalFavoriteCountdown(Number(time.dataset.airingAt));
+    });
+}
+
+function splitKurocalTranslationText(text, maxLength = 450) {
+    const chunks = [];
+    let remaining = text.trim();
+    while (remaining.length > maxLength) {
+        let splitAt = remaining.lastIndexOf(' ', maxLength);
+        if (splitAt < Math.floor(maxLength * 0.6)) splitAt = maxLength;
+        chunks.push(remaining.slice(0, splitAt).trim());
+        remaining = remaining.slice(splitAt).trim();
+    }
+    if (remaining) chunks.push(remaining);
+    return chunks;
+}
+
+async function translateKurocalSynopsis(text) {
+    const chunks = splitKurocalTranslationText(text);
+    const translations = [];
+    for (const chunk of chunks) {
+        const params = new URLSearchParams({ q: chunk, langpair: 'en|fr' });
+        const response = await fetch(`https://api.mymemory.translated.net/get?${params}`);
+        const result = await response.json();
+        if (!response.ok || result.responseStatus !== 200 || result.quotaFinished) {
+            throw new Error(result.responseDetails || 'Le service de traduction est temporairement indisponible.');
+        }
+        const translated = result.responseData?.translatedText;
+        if (!translated) throw new Error('Le service de traduction n’a pas renvoyé de texte.');
+        translations.push(translated);
+    }
+    return translations.join(' ');
+}
+
+function updateKurocalSynopsisControls(description, synopsisToggle, translateButton) {
+    synopsisToggle.hidden = description.scrollHeight <= description.clientHeight + 1;
+    translateButton.hidden = !kurocalSynopsisOriginal || kurocalSynopsisOriginal.length < 3;
+}
+
+function collapseKurocalSynopsis(description, synopsisToggle) {
+    description.classList.remove('is-expanded');
+    synopsisToggle.setAttribute('aria-expanded', 'false');
+    synopsisToggle.querySelector('span:last-child').textContent = 'Lire la suite';
+    synopsisToggle.querySelector('.material-symbols-rounded').textContent = 'expand_more';
+}
+
+async function toggleKurocalSynopsisTranslation() {
+    const description = document.getElementById('kurocalDetailDescription');
+    const synopsisToggle = document.getElementById('kurocalSynopsisToggle');
+    const translateButton = document.getElementById('kurocalTranslateSynopsis');
+    const buttonText = translateButton?.querySelector('span:last-child');
+    if (!description || !synopsisToggle || !translateButton || !buttonText || !kurocalSynopsisOriginal) return;
+
+    if (kurocalSynopsisTranslated) {
+        kurocalSynopsisTranslated = false;
+        description.textContent = kurocalSynopsisOriginal;
+        collapseKurocalSynopsis(description, synopsisToggle);
+        buttonText.textContent = 'Traduire en français';
+        synopsisToggle.hidden = true;
+        window.requestAnimationFrame(() => updateKurocalSynopsisControls(description, synopsisToggle, translateButton));
+        return;
+    }
+
+    const cacheKey = `${kurocalCurrentMedia?.id}:${kurocalSynopsisOriginal}`;
+    let translated = kurocalSynopsisTranslationCache.get(cacheKey);
+    if (!translated) {
+        if (kurocalSynopsisOriginal.length > 5000) {
+            showAppToast('Ce synopsis dépasse la limite gratuite de traduction.', 'warning');
+            return;
+        }
+        const requestId = ++kurocalTranslationRequestId;
+        translateButton.disabled = true;
+        buttonText.textContent = 'Traduction…';
+        try {
+            translated = await translateKurocalSynopsis(kurocalSynopsisOriginal);
+            if (requestId !== kurocalTranslationRequestId || document.getElementById('kurocalDetail')?.hidden !== false) return;
+            kurocalSynopsisTranslationCache.set(cacheKey, translated);
+        } catch (error) {
+            if (requestId !== kurocalTranslationRequestId) return;
+            console.error('Impossible de traduire le synopsis Kurocal :', error);
+            showAppToast('La traduction est indisponible pour le moment. Réessaie plus tard.', 'error');
+            buttonText.textContent = 'Traduire en français';
+            return;
+        } finally {
+            if (requestId === kurocalTranslationRequestId) translateButton.disabled = false;
+        }
+    }
+
+    if (document.getElementById('kurocalDetail')?.hidden !== false) return;
+    kurocalSynopsisTranslated = true;
+    description.textContent = translated;
+    collapseKurocalSynopsis(description, synopsisToggle);
+    buttonText.textContent = 'Afficher l’original';
+    synopsisToggle.hidden = true;
+    window.requestAnimationFrame(() => updateKurocalSynopsisControls(description, synopsisToggle, translateButton));
+}
+
+function updateKurocalDetailFavoriteButton() {
+    const button = document.getElementById('kurocalDetailFavorite');
+    if (!button || !kurocalCurrentMedia) return;
+    const favorite = isKurocalFavorite(kurocalCurrentMedia.id);
+    button.querySelector('span:last-child').textContent = favorite ? 'Retirer des favoris Kurocal' : 'Ajouter aux favoris Kurocal';
+    button.classList.toggle('is-favorite', favorite);
+}
+
+function updateKurocalScheduleToggle() {
+    const button = document.getElementById('kurocalScheduleToggle');
+    if (!button || !kurocalCurrentAiring) return;
+    const icon = document.createElement('span');
+    icon.className = 'material-symbols-rounded kurocal-schedule-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    const date = new Date(kurocalCurrentAiring.airingAt * 1000);
+    button.replaceChildren(icon);
+    if (kurocalScheduleDisplayMode === 'countdown') {
+        icon.textContent = 'hourglass_top';
+        const seconds = Math.max(0, kurocalCurrentAiring.airingAt - Math.floor(Date.now() / 1000));
+        if (!seconds) {
+            const text = document.createElement('span');
+            text.className = 'kurocal-schedule-date';
+            text.textContent = `Épisode ${kurocalCurrentAiring.episode} diffusé`;
+            button.appendChild(text);
+            button.title = 'Cliquer pour afficher la date et l’heure';
+            return;
+        }
+        const units = [];
+        const days = Math.floor(seconds / 86400);
+        if (days) units.push({ value: days, label: days === 1 ? 'jour' : 'jours' });
+        units.push(
+            { value: Math.floor((seconds % 86400) / 3600), label: 'heures' },
+            { value: Math.floor((seconds % 3600) / 60), label: 'minutes' },
+            { value: seconds % 60, label: 'secondes' }
+        );
+        const countdown = document.createElement('span');
+        countdown.className = 'kurocal-countdown-content';
+        const caption = document.createElement('span');
+        caption.className = 'kurocal-countdown-caption';
+        caption.textContent = `Avant l’épisode ${kurocalCurrentAiring.episode}`;
+        const display = document.createElement('span');
+        display.className = 'kurocal-countdown-units';
+        units.forEach(unit => {
+            const item = document.createElement('span');
+            item.className = 'kurocal-countdown-unit';
+            const value = document.createElement('strong');
+            value.textContent = String(unit.value).padStart(2, '0');
+            const label = document.createElement('small');
+            label.textContent = unit.label;
+            item.append(value, label);
+            display.appendChild(item);
+        });
+        countdown.append(caption, display);
+        button.appendChild(countdown);
+        button.title = 'Cliquer pour afficher la date et l’heure';
+    } else {
+        icon.textContent = 'calendar_month';
+        const text = document.createElement('span');
+        text.className = 'kurocal-schedule-date';
+        text.textContent = `${formatKurocalDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · ${new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(date)} · Épisode ${kurocalCurrentAiring.episode}`;
+        button.appendChild(text);
+        button.title = 'Cliquer pour afficher le compte à rebours';
+    }
+}
+
+function openKurocalDetail(media, airing = null) {
+    const overlay = document.getElementById('kurocalDetail');
+    const image = document.getElementById('kurocalDetailImage');
+    const title = document.getElementById('kurocalDetailTitle');
+    const meta = document.getElementById('kurocalDetailMeta');
+    const information = document.getElementById('kurocalDetailInfo');
+    const description = document.getElementById('kurocalDetailDescription');
+    const synopsisToggle = document.getElementById('kurocalSynopsisToggle');
+    const scheduleToggle = document.getElementById('kurocalScheduleToggle');
+    const trailerContainer = document.getElementById('kurocalTrailer');
+    const favoriteButton = document.getElementById('kurocalDetailFavorite');
+    const translateButton = document.getElementById('kurocalTranslateSynopsis');
+    const addButton = document.getElementById('kurocalAddToList');
+    if (!overlay || !image || !title || !meta || !information || !description || !synopsisToggle || !scheduleToggle || !trailerContainer || !favoriteButton || !translateButton || !addButton) return;
+
+    kurocalTranslationRequestId++;
+    kurocalCurrentMedia = media;
+    kurocalCurrentAiring = airing;
+    kurocalScheduleDisplayMode = 'date';
+    kurocalSynopsisOriginal = (media.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    kurocalSynopsisTranslated = false;
+    window.clearInterval(kurocalCountdownInterval);
+    image.src = getKurocalCover(media);
+    image.alt = getKurocalTitle(media);
+    title.textContent = getKurocalTitle(media);
+    const details = [];
+    if (airing) {
+        const date = new Date(airing.airingAt * 1000);
+        details.push(`${airing.projected ? 'Date estimée · ' : ''}${formatKurocalDate(date)} à ${new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(date)}`);
+    } else if (media.startDate?.year) {
+        const start = media.startDate;
+        details.push(start.month && start.day
+            ? formatKurocalDate(new Date(start.year, start.month - 1, start.day), { day: 'numeric', month: 'long', year: 'numeric' })
+            : String(start.year));
+        details.push('Prochaine sortie');
+    }
+    meta.textContent = details.join(' · ');
+
+    information.replaceChildren();
+    const infoItems = [];
+    if (media.genres?.length) infoItems.push(...media.genres.map(genre => ({ label: genre, isGenre: true })));
+    if (media.format) infoItems.push({ label: media.format.replaceAll('_', ' ') });
+    if (media.episodes) infoItems.push({ label: `${media.episodes} épisodes` });
+    else if (airing) infoItems.push({ label: '12 épisodes estimés' });
+    infoItems.forEach(item => {
+        const badge = document.createElement('span');
+        badge.className = item.isGenre ? 'kurocal-info-chip genre' : 'kurocal-info-chip';
+        badge.textContent = item.label;
+        information.appendChild(badge);
+    });
+
+    scheduleToggle.hidden = !airing;
+    scheduleToggle.onclick = airing ? () => {
+        kurocalScheduleDisplayMode = kurocalScheduleDisplayMode === 'date' ? 'countdown' : 'date';
+        updateKurocalScheduleToggle();
+    } : null;
+    if (airing) {
+        updateKurocalScheduleToggle();
+        kurocalCountdownInterval = window.setInterval(() => {
+            if (kurocalScheduleDisplayMode === 'countdown') updateKurocalScheduleToggle();
+        }, 1000);
+    }
+
+    description.textContent = kurocalSynopsisOriginal || 'Aucun synopsis fourni.';
+    description.classList.remove('is-expanded');
+    synopsisToggle.hidden = true;
+    synopsisToggle.setAttribute('aria-expanded', 'false');
+    synopsisToggle.querySelector('span:last-child').textContent = 'Lire la suite';
+    synopsisToggle.querySelector('.material-symbols-rounded').textContent = 'expand_more';
+    translateButton.disabled = false;
+    translateButton.querySelector('span:last-child').textContent = 'Traduire en français';
+    translateButton.hidden = !kurocalSynopsisOriginal || kurocalSynopsisOriginal.length < 3;
+    translateButton.onclick = toggleKurocalSynopsisTranslation;
+    window.requestAnimationFrame(() => {
+        updateKurocalSynopsisControls(description, synopsisToggle, translateButton);
+    });
+    synopsisToggle.onclick = () => {
+        const expanded = description.classList.toggle('is-expanded');
+        synopsisToggle.setAttribute('aria-expanded', String(expanded));
+        synopsisToggle.querySelector('span:last-child').textContent = expanded ? 'Réduire' : 'Lire la suite';
+        synopsisToggle.querySelector('.material-symbols-rounded').textContent = expanded ? 'expand_less' : 'expand_more';
+    };
+
+    trailerContainer.replaceChildren();
+    trailerContainer.hidden = true;
+    if (media.trailer?.site?.toLowerCase() === 'youtube' && media.trailer.id) {
+        const trailerHeading = document.createElement('h3');
+        trailerHeading.textContent = 'Bande-annonce';
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(media.trailer.id)}`;
+        iframe.title = `Bande-annonce de ${getKurocalTitle(media)}`;
+        iframe.loading = 'lazy';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        iframe.allowFullscreen = true;
+        trailerContainer.append(trailerHeading, iframe);
+        trailerContainer.hidden = false;
+    }
+
+    favoriteButton.onclick = () => toggleKurocalFavorite(media);
+    addButton.disabled = false;
+    addButton.textContent = 'Ajouter à la Kuroliste';
+    addButton.onclick = async () => {
+        addButton.disabled = true;
+        addButton.textContent = 'Ajout…';
+        const isMovie = media.format === 'MOVIE';
+        try {
+            const added = await addAnime(
+                media.id,
+                getKurocalCover(media),
+                media.title?.native || '',
+                media.title?.romaji || getKurocalTitle(media),
+                media.title?.english || media.title?.romaji || getKurocalTitle(media),
+                media.title?.english ? 'EN' : 'NA',
+                'toview',
+                isMovie ? '' : 1,
+                Number(media.episodes) || 0,
+                0,
+                0,
+                '',
+                isMovie,
+                isMovie ? formatDurationFromMinutes(media.duration) : '00:00:00',
+                0,
+                0,
+                media.description || ''
+            );
+            addButton.textContent = added ? 'Ajouté à la Kuroliste' : 'Réessayer';
+        } catch (error) {
+            console.error('Impossible d’ajouter cet anime à la Kuroliste :', error);
+            showAppToast('Impossible d’ajouter cet anime à la Kuroliste.', 'error');
+            addButton.textContent = 'Réessayer';
+        } finally {
+            addButton.disabled = false;
+        }
+    };
+    updateKurocalDetailFavoriteButton();
+    overlay.hidden = false;
+}
+
+function closeKurocalDetail() {
+    const overlay = document.getElementById('kurocalDetail');
+    if (overlay) overlay.hidden = true;
+    kurocalTranslationRequestId++;
+    window.clearInterval(kurocalCountdownInterval);
+    kurocalCountdownInterval = null;
+    kurocalCurrentMedia = null;
+    kurocalCurrentAiring = null;
+}
+
+function showKurocalPanel(viewName) {
+    const panels = {
+        today: 'kurocalOverviewPanel',
+        calendar: 'kurocalCalendarPanel',
+        new: 'kurocalNewPanel',
+        favorites: 'kurocalFavoritesPanel',
+        settings: 'kurocalSettingsPanel'
+    };
+    Object.entries(panels).forEach(([name, id]) => {
+        const panel = document.getElementById(id);
+        if (panel) panel.hidden = name !== viewName;
+    });
+    document.querySelectorAll('.kurocal-nav [data-kurocal-view]').forEach(button => {
+        button.classList.toggle('active', button.dataset.kurocalView === viewName);
+    });
+    const subtitle = document.getElementById('kurocalSubtitle');
+    if (subtitle) {
+        subtitle.textContent = viewName === 'today' ? 'À venir'
+            : viewName === 'new' ? 'Nouvelles sorties'
+            : viewName === 'favorites' ? 'Tes favoris'
+            : viewName === 'settings' ? 'Préférences du calendrier'
+            : 'Calendrier des diffusions';
+    }
+    if (viewName === 'today') {
+        loadKurocalOverview();
+    } else if (viewName === 'calendar') {
+        renderKurocalWeekdays();
+        loadKurocalWeek(getKurocalWeekStart(kurocalSelectedDate));
+    } else if (viewName === 'new') {
+        loadKurocalNewReleases();
+    } else if (viewName === 'favorites') {
+        renderKurocalFavorites();
+    }
+}
+
+async function refreshKurocalActiveView() {
+    const overviewPanel = document.getElementById('kurocalOverviewPanel');
+    const calendarPanel = document.getElementById('kurocalCalendarPanel');
+    const newPanel = document.getElementById('kurocalNewPanel');
+    const favoritesPanel = document.getElementById('kurocalFavoritesPanel');
+
+    if (overviewPanel && !overviewPanel.hidden) {
+        kurocalOverviewItems = null;
+        kurocalNewReleaseItems = null;
+        await loadKurocalOverview();
+        return;
+    }
+    if (calendarPanel && !calendarPanel.hidden) {
+        const selectedWeekStart = getKurocalWeekStart(kurocalSelectedDate);
+        kurocalScheduleCache.delete(getKurocalDateKey(selectedWeekStart));
+        await loadKurocalWeek(selectedWeekStart);
+        return;
+    }
+    if (newPanel && !newPanel.hidden) {
+        kurocalNewReleaseItems = null;
+        await loadKurocalNewReleases();
+        return;
+    }
+    if (favoritesPanel && !favoritesPanel.hidden) {
+        kurocalFavoriteScheduleItems = null;
+        await renderKurocalFavorites();
+        return;
+    }
+
+    kurocalScheduleCache.delete(getKurocalDateKey(kurocalWeekStart));
+    kurocalNewReleaseItems = null;
+    const refreshes = [loadKurocalWeek(), loadKurocalNewReleases()];
+    kurocalOverviewItems = null;
+    kurocalOverviewRequestId++;
+    if (getKurocalFavorites().length) {
+        kurocalFavoriteScheduleItems = null;
+        refreshes.push(renderKurocalFavorites());
+    }
+    await Promise.all(refreshes);
+}
+
+window.refreshKurocalActiveView = refreshKurocalActiveView;
+
+function openKurocal() {
+    const view = document.getElementById('kurocalView');
+    if (!view) return;
+    const activePanel = document.querySelector('.view-panel.active');
+    kurocalReturnView = activePanel?.id || 'gridAnime';
+    view.hidden = false;
+    document.body.classList.add('kurocal-active');
+    showKurocalPanel('today');
+}
+
+function closeKurocal() {
+    closeKurocalDetail();
+    const view = document.getElementById('kurocalView');
+    if (view) view.hidden = true;
+    document.body.classList.remove('kurocal-active');
+    showView(kurocalReturnView);
+}
+
+function moveKurocalWeek(amount) {
+    kurocalWeekStart = addKurocalDays(kurocalWeekStart, amount * 7);
+    kurocalSlideDirection = amount > 0 ? 'next' : 'previous';
+    renderKurocalWeekdays();
+}
+
+function initializeKurocal() {
+    const hideHentai = document.getElementById('kurocalHideHentai');
+    if (hideHentai) {
+        hideHentai.checked = shouldHideKurocalHentai();
+        hideHentai.addEventListener('change', () => setKurocalHentaiFilter(hideHentai.checked));
+    }
+    document.getElementById('kurocalFavoritesImport')?.addEventListener('change', async event => {
+        const input = event.currentTarget;
+        await importKurocalFavorites(input.files?.[0]);
+        input.value = '';
+    });
+    document.getElementById('kurocalPreviousWeek')?.addEventListener('click', () => moveKurocalWeek(-1));
+    document.getElementById('kurocalNextWeek')?.addEventListener('click', () => moveKurocalWeek(1));
+    document.getElementById('kurocalFavoriteFilter')?.addEventListener('click', event => {
+        kurocalFavoriteOnly = !kurocalFavoriteOnly;
+        event.currentTarget.setAttribute('aria-pressed', String(kurocalFavoriteOnly));
+        renderKurocalSchedule();
+    });
+    document.querySelectorAll('.kurocal-nav [data-kurocal-view]').forEach(button => {
+        button.addEventListener('click', () => {
+            showKurocalPanel(button.dataset.kurocalView);
+        });
+    });
+    document.getElementById('kurocalOverviewAllNew')?.addEventListener('click', () => showKurocalPanel('new'));
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !document.body.classList.contains('kurocal-active')) return;
+        const detail = document.getElementById('kurocalDetail');
+        if (detail && !detail.hidden) closeKurocalDetail();
+        else closeKurocal();
+    });
+    renderKurocalWeekdays();
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('kurolisteJsonImport')?.addEventListener('change', async event => {
+        const input = event.currentTarget;
+        await importKurolisteJson(input.files?.[0]);
+        input.value = '';
+    });
+
     const searchInput = document.getElementById('searchQuery');
     if (searchInput) {
         let searchTimeout = null;
-        searchInput.addEventListener('input', () => {
+        const scheduleSearch = () => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 searchAnime(searchInput.value.trim());
             }, 300);
-        });
+        };
+        searchInput.addEventListener('input', scheduleSearch);
     }
 
     const imageInput = document.getElementById('manual-image-url');
@@ -1413,4 +3004,5 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     toggleManualTypeFields();
+    initializeKurocal();
 });

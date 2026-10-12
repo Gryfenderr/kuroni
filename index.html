@@ -83,6 +83,23 @@
                     <span id="compactModeLabel">Mode compact</span>
                 </button>
 
+                <div class="settings-block">
+                    <h3>Kuroliste</h3>
+                    <button type="button" class="settings-btn" onclick="exportKurolisteText();">
+                        <span class="material-symbols-rounded">download</span>
+                        <span>Télécharger en fichier texte</span>
+                    </button>
+                    <button type="button" class="settings-btn" onclick="exportKurolisteJson();">
+                        <span class="material-symbols-rounded">backup</span>
+                        <span>Sauvegarder la Kuroliste en JSON</span>
+                    </button>
+                    <button type="button" class="settings-btn" onclick="document.getElementById('kurolisteJsonImport').click();">
+                        <span class="material-symbols-rounded">restore</span>
+                        <span>Restaurer depuis un fichier JSON</span>
+                    </button>
+                    <input type="file" id="kurolisteJsonImport" accept=".json,application/json" hidden>
+                </div>
+
                 <!-- <div class="settings-block">
                     <h3>Profil</h3>
                     <button type="button" class="settings-btn">
@@ -118,7 +135,11 @@
 
     </main>
 
-    <button type="button" class="add-anime-fab" aria-label="Ajouter un anime manuellement" title="Ajouter un anime" onclick="openManualAddModal();">
+    <button type="button" class="calendar-entry-button" aria-label="Ouvrir Kurocal" title="Kurocal" onclick="openKurocal();">
+        <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+    </button>
+
+    <button type="button" class="add-anime-fab" aria-label="Ajouter un anime manuellement" title="Ajouter un anime" onclick="openManualAddModal();" hidden>
         <span class="material-symbols-rounded">add</span>
     </button>
 
@@ -150,6 +171,174 @@
         </button>
 
     </nav>
+
+    <section id="kurocalView" class="kurocal-app" aria-label="Kurocal" hidden>
+        <header class="kurocal-header">
+            <button type="button" class="kurocal-back" aria-label="Retour à la Kuroliste" title="Retour à la Kuroliste" onclick="closeKurocal();">
+                <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+            </button>
+            <div>
+                <h1>Kurocal</h1>
+                <p id="kurocalSubtitle">Calendrier des diffusions</p>
+            </div>
+        </header>
+
+        <div class="kurocal-content">
+            <section id="kurocalOverviewPanel" class="kurocal-panel" hidden>
+                <div class="kurocal-section-heading">
+                    <h2>À venir</h2>
+                    <p>Les diffusions du jour, les prochains jours et les sorties à surveiller.</p>
+                </div>
+                <div class="kurocal-overview-section">
+                    <h3>Aujourd’hui</h3>
+                    <div id="kurocalOverviewTodayMessage" class="kurocal-message" role="status" aria-live="polite"></div>
+                    <div id="kurocalOverviewTodayGrid" class="kurocal-grid"></div>
+                </div>
+                <div class="kurocal-overview-section">
+                    <h3>Les prochains jours</h3>
+                    <div id="kurocalOverviewUpcomingMessage" class="kurocal-message" role="status" aria-live="polite"></div>
+                    <div id="kurocalOverviewUpcomingGrid" class="kurocal-grid"></div>
+                </div>
+                <div class="kurocal-overview-section">
+                    <div class="kurocal-overview-heading">
+                        <h3>Prochaines nouveautés</h3>
+                        <button type="button" id="kurocalOverviewAllNew">Toutes les nouveautés</button>
+                    </div>
+                    <div id="kurocalOverviewNewMessage" class="kurocal-message" role="status" aria-live="polite"></div>
+                    <div id="kurocalOverviewNewGrid" class="kurocal-grid"></div>
+                </div>
+            </section>
+
+            <section id="kurocalCalendarPanel" class="kurocal-panel">
+                <div class="kurocal-week-toolbar">
+                    <button type="button" id="kurocalPreviousWeek" aria-label="Semaine précédente" title="Semaine précédente">
+                        <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+                    </button>
+                    <h2 id="kurocalMonthHeading"></h2>
+                    <button type="button" id="kurocalNextWeek" aria-label="Semaine suivante" title="Semaine suivante">
+                        <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+                    </button>
+                    <button type="button" id="kurocalFavoriteFilter" class="kurocal-filter-button" aria-label="Afficher uniquement mes favoris" aria-pressed="false" title="Filtrer par favoris">
+                        <span class="material-symbols-rounded" aria-hidden="true">star</span>
+                    </button>
+                </div>
+                <div id="kurocalWeekdays" class="kurocal-weekdays" role="tablist" aria-label="Jours de la semaine"></div>
+                <p id="kurocalSelectedDate" class="kurocal-selected-date"></p>
+                <div id="kurocalScheduleMessage" class="kurocal-message" role="status" aria-live="polite"></div>
+                <div id="kurocalScheduleGrid" class="kurocal-grid"></div>
+            </section>
+
+            <section id="kurocalNewPanel" class="kurocal-panel" hidden>
+                <div class="kurocal-section-heading">
+                    <h2>Nouvelles sorties</h2>
+                    <p>Les prochains anime dont la diffusion n’a pas encore commencé.</p>
+                </div>
+                <div id="kurocalNewMessage" class="kurocal-message" role="status" aria-live="polite"></div>
+                <div id="kurocalNewGrid" class="kurocal-grid"></div>
+            </section>
+
+            <section id="kurocalFavoritesPanel" class="kurocal-panel" hidden>
+                <div class="kurocal-section-heading">
+                    <h2>Mes favoris Kurocal</h2>
+                    <p>Cette sélection est indépendante des favoris de la Kuroliste.</p>
+                </div>
+                <div id="kurocalFavoritesMessage" class="kurocal-message" role="status" aria-live="polite" hidden></div>
+                <div id="kurocalFavoritesList" class="kurocal-favorites-list"></div>
+                <p id="kurocalFavoritesEmpty" class="kurocal-message" hidden>Aucun favori pour le moment. Appuie sur l’étoile d’une carte pour l’ajouter ici.</p>
+            </section>
+
+            <section id="kurocalSettingsPanel" class="kurocal-panel" hidden>
+                <div class="kurocal-section-heading">
+                    <h2>Paramètres</h2>
+                </div>
+                <div class="kurocal-settings-card">
+                    <p><strong>Source des diffusions</strong><span>AniList — connexion directe depuis ton navigateur.</span></p>
+                    <p><strong>Fuseau horaire</strong><span>Les horaires sont affichés selon le fuseau de ton appareil.</span></p>
+                    <p><strong>Favoris</strong><span>Enregistrés localement sur cet appareil et séparés de la Kuroliste.</span></p>
+                    <div class="kurocal-setting-actions">
+                        <button type="button" onclick="exportKurocalFavorites();">
+                            <span class="material-symbols-rounded" aria-hidden="true">download</span>
+                            <span>Exporter les favoris</span>
+                        </button>
+                        <button type="button" onclick="document.getElementById('kurocalFavoritesImport').click();">
+                            <span class="material-symbols-rounded" aria-hidden="true">upload</span>
+                            <span>Importer des favoris</span>
+                        </button>
+                        <input type="file" id="kurocalFavoritesImport" accept=".json,application/json" hidden>
+                    </div>
+                    <label class="kurocal-setting-toggle" for="kurocalHideHentai">
+                        <span>
+                            <strong>Masquer les hentai</strong>
+                            <small>Filtre les contenus adultes dans le calendrier, les nouveautés et les favoris.</small>
+                        </span>
+                        <input type="checkbox" id="kurocalHideHentai" checked>
+                        <span class="kurocal-setting-switch" aria-hidden="true"></span>
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <nav class="kurocal-nav" aria-label="Navigation Kurocal">
+            <button type="button" data-kurocal-view="today" aria-label="À venir" title="À venir">
+                <span class="material-symbols-rounded" aria-hidden="true">upcoming</span>
+                <span>À venir</span>
+            </button>
+            <button type="button" data-kurocal-view="new" aria-label="Nouvelles sorties" title="Nouvelles sorties">
+                <span class="material-symbols-rounded" aria-hidden="true">new_releases</span>
+                <span>Nouveautés</span>
+            </button>
+            <button type="button" data-kurocal-view="calendar" class="active" aria-label="Calendrier" title="Calendrier">
+                <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+                <span>Calendrier</span>
+            </button>
+            <button type="button" data-kurocal-view="favorites" aria-label="Favoris Kurocal" title="Favoris Kurocal">
+                <span class="material-symbols-rounded" aria-hidden="true">star</span>
+                <span>Favoris</span>
+            </button>
+            <button type="button" data-kurocal-view="settings" aria-label="Paramètres Kurocal" title="Paramètres">
+                <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+                <span>Paramètres</span>
+            </button>
+        </nav>
+
+        <div id="kurocalDetail" class="kurocal-detail-backdrop" hidden role="presentation" onclick="if(event.target === this) closeKurocalDetail();">
+            <article class="kurocal-detail" role="dialog" aria-modal="true" aria-labelledby="kurocalDetailTitle">
+                <button type="button" class="kurocal-detail-close" aria-label="Fermer" title="Fermer" onclick="closeKurocalDetail();">
+                    <span class="material-symbols-rounded" aria-hidden="true">close</span>
+                </button>
+                <img id="kurocalDetailImage" class="kurocal-detail-image" alt="">
+                <div class="kurocal-detail-body">
+                    <p id="kurocalDetailMeta" class="kurocal-detail-meta"></p>
+                    <h2 id="kurocalDetailTitle"></h2>
+                    <div id="kurocalDetailInfo" class="kurocal-detail-info"></div>
+                    <button type="button" id="kurocalScheduleToggle" class="kurocal-schedule-toggle" hidden>
+                        <span class="material-symbols-rounded kurocal-schedule-icon" aria-hidden="true">schedule</span>
+                    </button>
+                    <div class="kurocal-synopsis">
+                        <p id="kurocalDetailDescription" class="kurocal-detail-description"></p>
+                        <div class="kurocal-synopsis-actions">
+                            <button type="button" id="kurocalSynopsisToggle" class="kurocal-synopsis-toggle" aria-expanded="false" hidden>
+                                <span class="material-symbols-rounded" aria-hidden="true">expand_more</span>
+                                <span>Lire la suite</span>
+                            </button>
+                            <button type="button" id="kurocalTranslateSynopsis" class="kurocal-translate-button" hidden>
+                                <span class="material-symbols-rounded" aria-hidden="true">translate</span>
+                                <span>Traduire en français</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="kurocalTrailer" class="kurocal-trailer" hidden></div>
+                    <div class="kurocal-detail-actions">
+                        <button type="button" id="kurocalDetailFavorite" class="kurocal-detail-favorite">
+                            <span class="material-symbols-rounded" aria-hidden="true">star</span>
+                            <span>Ajouter aux favoris Kurocal</span>
+                        </button>
+                        <button type="button" id="kurocalAddToList" class="kurocal-add-list">Ajouter à la Kuroliste</button>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
 
     <div id="cardInfoOverlay" class="card-info-overlay hidden" onclick="if(event.target === this) hideCardInfo();">
         <div class="card-info-panel">
@@ -320,7 +509,7 @@
         </div>
     </div>
 
-    <div class="app-toast" id="appToast" role="status" aria-live="polite"></div>
+    <div class="app-toast-container" id="appToastContainer" aria-live="polite" aria-relevant="additions"></div>
 
     <div class="confirm-dialog-backdrop" id="confirmDialog" hidden>
         <div class="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogTitle">
@@ -371,6 +560,7 @@
                             native
                         }
                         coverImage {
+                            extraLarge
                             large
                         }
                         description
@@ -398,9 +588,10 @@
                         const anime = data.data.Media;
                         // Vous pouvez maintenant utiliser les informations de l'anime
                         // Par exemple, afficher l'image et le titre
-                        if (anime.coverImage && anime.coverImage.large) {
-                            imgPreview.src = anime.coverImage.large;
-                            imgURL.value = anime.coverImage.large;
+                        const coverUrl = anime.coverImage?.extraLarge || anime.coverImage?.large || '';
+                        if (coverUrl) {
+                            imgPreview.src = coverUrl;
+                            imgURL.value = coverUrl;
                             console.log(imgURL.value);
                             imgPreview.style.display = 'block';
                             titrenatif.value = anime.title.native;
@@ -466,7 +657,7 @@
         function setManualAddButtonVisibility(viewName) {
             const addButton = document.querySelector('.add-anime-fab');
             if (!addButton) return;
-            addButton.hidden = viewName !== 'gridAnime';
+            addButton.hidden = viewName !== 'searchView';
         }
 
         function applyCompactMode() {
@@ -635,9 +826,13 @@
         window.handleSwipe = handleSwipe;
 
         const pullRefreshHint = document.getElementById('pullRefreshHint');
+        const kurocalPullRefreshArea = document.getElementById('kurocalView');
         const grid = document.getElementById('gridAnime');
         let pullRefreshTracking = false;
         let pullRefreshReady = false;
+        let kurocalPullRefreshTracking = false;
+        let kurocalPullRefreshReady = false;
+        let kurocalRefreshHintTimeout = null;
 
         function getScrollTop() {
             return document.scrollingElement?.scrollTop || window.scrollY || 0;
@@ -713,6 +908,65 @@
             swipeArea.addEventListener('touchstart', handleTouchStart, { passive: true });
             swipeArea.addEventListener('touchmove', handleTouchMove, { passive: false });
             swipeArea.addEventListener('touchend', handleTouchEnd, { passive: true });
+        }
+
+        if (kurocalPullRefreshArea) {
+            kurocalPullRefreshArea.addEventListener('touchstart', event => {
+                const detail = document.getElementById('kurocalDetail');
+                if (event.touches.length !== 1 ||
+                    !document.body.classList.contains('kurocal-active') ||
+                    (detail && !detail.hidden)) return;
+                touchStartY = event.touches[0].clientY;
+                touchStartX = event.touches[0].clientX;
+                kurocalPullRefreshTracking = kurocalPullRefreshArea.scrollTop <= 0;
+                kurocalPullRefreshReady = false;
+                if (pullRefreshHint) pullRefreshHint.classList.remove('active', 'refreshing');
+            }, { passive: true });
+
+            kurocalPullRefreshArea.addEventListener('touchmove', event => {
+                if (!kurocalPullRefreshTracking || event.touches.length !== 1) return;
+                const dx = event.touches[0].clientX - touchStartX;
+                const dy = event.touches[0].clientY - touchStartY;
+                if (dy <= 0 || Math.abs(dy) <= Math.abs(dx)) {
+                    kurocalPullRefreshTracking = false;
+                    kurocalPullRefreshReady = false;
+                    if (pullRefreshHint) pullRefreshHint.classList.remove('active');
+                    return;
+                }
+                event.preventDefault();
+                kurocalPullRefreshReady = dy > 100;
+                if (pullRefreshHint) pullRefreshHint.classList.toggle('active', dy > 40);
+            }, { passive: false });
+
+            kurocalPullRefreshArea.addEventListener('touchend', () => {
+                if (kurocalPullRefreshReady && document.body.classList.contains('kurocal-active')) {
+                    const hintText = pullRefreshHint?.querySelector('span:last-child');
+                    if (hintText) hintText.textContent = 'Actualisation en cours…';
+                    if (pullRefreshHint) pullRefreshHint.classList.add('active', 'refreshing');
+                    window.clearTimeout(kurocalRefreshHintTimeout);
+                    Promise.resolve(window.refreshKurocalActiveView?.())
+                        .catch(error => {
+                            console.error('Impossible d’actualiser Kurocal :', error);
+                            showAppToast('Impossible d’actualiser Kurocal.', 'error');
+                        })
+                        .finally(() => {
+                            kurocalRefreshHintTimeout = window.setTimeout(() => {
+                                if (hintText) hintText.textContent = 'Glisser vers le bas pour recharger';
+                                if (pullRefreshHint) pullRefreshHint.classList.remove('active', 'refreshing');
+                            }, 650);
+                        });
+                } else if (pullRefreshHint) {
+                    pullRefreshHint.classList.remove('active');
+                }
+                kurocalPullRefreshTracking = false;
+                kurocalPullRefreshReady = false;
+            }, { passive: true });
+
+            kurocalPullRefreshArea.addEventListener('touchcancel', () => {
+                kurocalPullRefreshTracking = false;
+                kurocalPullRefreshReady = false;
+                if (pullRefreshHint) pullRefreshHint.classList.remove('active');
+            }, { passive: true });
         }
     </script>
 

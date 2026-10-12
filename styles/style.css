@@ -18,7 +18,7 @@ body {
 main{
 
     padding:16px;
-    padding-bottom:110px; /* laisse la place à la navbar */
+    padding-bottom:calc(190px + env(safe-area-inset-bottom)); /* laisse la place à la navbar et au bas de l’écran */
 
 }
 
@@ -467,7 +467,7 @@ main{
     opacity: 0;
     pointer-events: none;
     transition: transform .25s ease, opacity .25s ease;
-    z-index: 21;
+    z-index: 60;
 }
 
 .pull-refresh-hint.active {
@@ -477,6 +477,14 @@ main{
 
 .pull-refresh-hint .material-symbols-rounded {
     font-size: 28px;
+}
+
+.pull-refresh-hint.refreshing .material-symbols-rounded {
+    animation: pull-refresh-spin .8s linear infinite;
+}
+
+@keyframes pull-refresh-spin {
+    to { transform: rotate(360deg); }
 }
 
 .add-anime-fab {
@@ -1181,12 +1189,21 @@ input:checked + .slider::before {
     background: rgba(255,255,255,0.14);
 }
 
-.app-toast {
+.app-toast-container {
     position: fixed;
     top: calc(12px + env(safe-area-inset-top));
     left: 50%;
     z-index: 60;
-    max-width: min(360px, calc(100vw - 36px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: min(360px, calc(100vw - 36px));
+    pointer-events: none;
+}
+
+.app-toast {
+    width: 100%;
     padding: 13px 16px;
     border: 1px solid rgba(255,255,255,.14);
     border-radius: 14px;
@@ -1194,14 +1211,13 @@ input:checked + .slider::before {
     color: #fff;
     box-shadow: 0 14px 34px rgba(0,0,0,.35);
     opacity: 0;
-    pointer-events: none;
-    transform: translate(-50%, calc(-100% - 16px));
+    transform: translateY(-10px);
     transition: opacity .3s ease, transform .3s ease;
 }
 
 .app-toast.visible {
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translateY(0);
 }
 
 .app-toast.success { border-color: rgba(83, 210, 130, .7); }
@@ -1531,7 +1547,7 @@ body.compact-mode .anime-card {
 
 @media (orientation: landscape) and (max-height: 600px) {
     main {
-        padding-bottom: 82px;
+        padding-bottom: calc(82px + env(safe-area-inset-bottom));
     }
 
     .bottom-nav {
@@ -1545,5 +1561,1175 @@ body.compact-mode .anime-card {
 
     .bottom-nav .material-symbols-rounded {
         font-size: 26px;
+    }
+}
+
+.calendar-entry-button {
+    position: fixed;
+    top: max(18px, env(safe-area-inset-top));
+    right: 18px;
+    z-index: 22;
+    width: 54px;
+    height: 54px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 50%;
+    background: rgba(255,255,255,.1);
+    color: #f2dc4c;
+    box-shadow: 0 10px 26px rgba(0,0,0,.32);
+    cursor: pointer;
+    transition: transform .2s ease, background .2s ease;
+}
+
+.calendar-entry-button:hover {
+    transform: translateY(-2px) scale(1.04);
+    background: rgba(255,255,255,.16);
+}
+
+.calendar-entry-button .material-symbols-rounded {
+    font-size: 30px;
+}
+
+.add-anime-fab {
+    top: auto;
+    right: 18px;
+    bottom: calc(180px + env(safe-area-inset-bottom));
+}
+
+body.kurocal-active #appView,
+body.kurocal-active > .bottom-nav,
+body.kurocal-active > .calendar-entry-button,
+body.kurocal-active > .add-anime-fab {
+    display: none !important;
+}
+
+.kurocal-app {
+    position: fixed;
+    z-index: 50;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background:
+        radial-gradient(ellipse at 50% -20%, rgba(208,191,14,.12), transparent 48%),
+        #111;
+    color: #eee;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+}
+
+.kurocal-app[hidden],
+.kurocal-panel[hidden],
+.kurocal-detail-backdrop[hidden] {
+    display: none !important;
+}
+
+.kurocal-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: max(12px, env(safe-area-inset-top)) 20px 12px;
+    background: rgba(17,17,17,.92);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    backdrop-filter: blur(16px);
+}
+
+.kurocal-header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.2;
+}
+
+.kurocal-header p {
+    margin: 3px 0 0;
+    color: #a7a7a7;
+    font-size: .84rem;
+}
+
+.kurocal-back,
+.kurocal-week-toolbar > button {
+    display: grid;
+    flex: 0 0 42px;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px;
+    background: rgba(255,255,255,.06);
+    color: #fff;
+    cursor: pointer;
+}
+
+.kurocal-back .material-symbols-rounded,
+.kurocal-week-toolbar .material-symbols-rounded {
+    font-size: 24px;
+}
+
+.kurocal-content {
+    width: min(1440px, 100%);
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.kurocal-week-toolbar {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 42px 48px;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.kurocal-week-toolbar h2 {
+    margin: 0;
+    text-align: center;
+    font-size: 1.2rem;
+    text-transform: capitalize;
+}
+
+.kurocal-week-toolbar .kurocal-filter-button {
+    width: 46px;
+    height: 42px;
+    color: #aaa;
+}
+
+.kurocal-week-toolbar .kurocal-filter-button[aria-pressed="true"] {
+    color: #111;
+    background: #d0bf0e;
+}
+
+.kurocal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 20px;
+    background: rgba(255,255,255,.035);
+}
+
+.kurocal-weekdays.slide-next {
+    animation: kurocal-week-next .24s ease-out both;
+}
+
+.kurocal-weekdays.slide-previous {
+    animation: kurocal-week-previous .24s ease-out both;
+}
+
+@keyframes kurocal-week-next {
+    from { opacity: .45; transform: translateX(18px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes kurocal-week-previous {
+    from { opacity: .45; transform: translateX(-18px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.kurocal-weekday {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 4px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.kurocal-weekday span {
+    font-size: .76rem;
+    text-transform: capitalize;
+}
+
+.kurocal-weekday strong {
+    color: #eee;
+    font-size: 1.08rem;
+}
+
+.kurocal-weekday.is-today strong {
+    color: #f2dc4c;
+}
+
+.kurocal-weekday.active {
+    border-color: rgba(208,191,14,.4);
+    background: rgba(208,191,14,.16);
+    color: #f2dc4c;
+}
+
+.kurocal-selected-date {
+    margin: 20px 0 12px;
+    color: #c9c9c9;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.kurocal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+    animation: kurocal-slide-in .22s ease-out both;
+}
+
+@keyframes kurocal-slide-in {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.kurocal-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    background: rgba(255,255,255,.045);
+    cursor: pointer;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+.kurocal-card:hover,
+.kurocal-card:focus-visible {
+    transform: translateY(-3px);
+    border-color: rgba(208,191,14,.38);
+    box-shadow: 0 12px 30px rgba(0,0,0,.32);
+    outline: none;
+}
+
+.kurocal-card-skeleton {
+    cursor: default;
+    pointer-events: none;
+}
+
+.kurocal-skeleton-poster,
+.kurocal-skeleton-title {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    background: rgba(255,255,255,.07);
+}
+
+.kurocal-skeleton-poster {
+    aspect-ratio: 2 / 3;
+}
+
+.kurocal-skeleton-title {
+    height: 2.6em;
+    margin: 10px;
+    border-radius: 6px;
+}
+
+.kurocal-skeleton-poster::after,
+.kurocal-skeleton-title::after {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.09) 50%, transparent 80%);
+    content: "";
+    animation: kurocal-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes kurocal-skeleton-shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+.kurocal-card-poster {
+    position: relative;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    background: #222;
+}
+
+.kurocal-card-poster > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.kurocal-card-meta {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    overflow: hidden;
+    padding: 5px 8px;
+    border-radius: 9px;
+    background: rgba(0,0,0,.78);
+    color: #f2dc4c;
+    font-size: .8rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kurocal-card-favorite {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 50%;
+    background: rgba(0,0,0,.65);
+    color: #fff;
+    cursor: pointer;
+}
+
+.kurocal-card-favorite .material-symbols-rounded {
+    font-size: 22px;
+}
+
+.kurocal-card-favorite.is-favorite {
+    color: #f2dc4c;
+    font-variation-settings: 'FILL' 1;
+}
+
+.kurocal-card h3 {
+    display: -webkit-box;
+    min-height: 2.6em;
+    margin: 0;
+    padding: 10px;
+    overflow: hidden;
+    color: #f4f4f4;
+    font-size: .9rem;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.kurocal-message {
+    margin: 18px 0;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+    background: rgba(255,255,255,.04);
+    color: #bbb;
+    text-align: center;
+}
+
+.kurocal-section-heading {
+    margin: 4px 0 18px;
+}
+
+.kurocal-section-heading h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.kurocal-section-heading p {
+    margin: 5px 0 0;
+    color: #aaa;
+    font-size: .92rem;
+}
+
+.kurocal-overview-section {
+    margin-top: 26px;
+}
+
+.kurocal-overview-section > h3,
+.kurocal-overview-heading h3 {
+    margin: 0 0 12px;
+    color: #f2f2f2;
+    font-size: 1.08rem;
+}
+
+.kurocal-overview-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.kurocal-overview-heading h3 {
+    margin: 0;
+}
+
+.kurocal-overview-heading button {
+    padding: 7px 10px;
+    border: 1px solid rgba(208,191,14,.25);
+    border-radius: 10px;
+    background: rgba(208,191,14,.1);
+    color: #f2dc4c;
+    font: inherit;
+    font-size: .8rem;
+    cursor: pointer;
+}
+
+.kurocal-overview-day {
+    grid-column: 1 / -1;
+    margin: 8px 0 0;
+    color: #f2dc4c;
+    font-size: .92rem;
+    text-transform: capitalize;
+}
+
+.kurocal-settings-card {
+    display: grid;
+    gap: 0;
+    max-width: 720px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    background: rgba(255,255,255,.045);
+}
+
+.kurocal-settings-card p {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.kurocal-settings-card p:last-child {
+    border-bottom: 0;
+}
+
+.kurocal-setting-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.kurocal-setting-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px;
+    background: rgba(255,255,255,.07);
+    color: #f2f2f2;
+    font: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+    transition: background .2s ease, border-color .2s ease;
+}
+
+.kurocal-setting-actions button:hover {
+    border-color: rgba(208,191,14,.35);
+    background: rgba(255,255,255,.12);
+}
+
+.kurocal-setting-actions .material-symbols-rounded {
+    font-size: 20px;
+}
+
+@media (max-width: 480px) {
+    .kurocal-setting-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+.kurocal-setting-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 76px;
+    padding: 16px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    cursor: pointer;
+}
+
+.kurocal-setting-toggle > span:first-child {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.kurocal-setting-toggle strong {
+    color: #f2f2f2;
+    font-size: .98rem;
+}
+
+.kurocal-setting-toggle small {
+    color: #aaa;
+    font-size: .84rem;
+    line-height: 1.4;
+}
+
+.kurocal-setting-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
+.kurocal-setting-switch {
+    position: relative;
+    flex: 0 0 52px;
+    width: 52px;
+    height: 32px;
+    border-radius: 999px;
+    background: #45454a;
+    transition: background .2s ease;
+}
+
+.kurocal-setting-switch::after {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,.28);
+    content: '';
+    transition: transform .2s ease;
+}
+
+.kurocal-setting-toggle input:checked + .kurocal-setting-switch {
+    background: #34c759;
+}
+
+.kurocal-setting-toggle input:checked + .kurocal-setting-switch::after {
+    transform: translateX(20px);
+}
+
+.kurocal-setting-toggle input:focus-visible + .kurocal-setting-switch {
+    outline: 3px solid rgba(52,199,89,.4);
+    outline-offset: 3px;
+}
+
+.kurocal-settings-card span {
+    color: #aaa;
+    font-size: .9rem;
+}
+
+.kurocal-favorites-list {
+    display: grid;
+    gap: 0;
+    width: min(1120px, 100%);
+    margin: 0 auto;
+}
+
+.kurocal-favorites-day {
+    margin: 24px 0 8px;
+    padding: 0 4px;
+    color: #eee;
+    font-size: 1.08rem;
+    text-transform: capitalize;
+}
+
+.kurocal-favorite-row {
+    display: grid;
+    grid-template-columns: clamp(128px, 18vw, 184px) minmax(0, 1fr);
+    align-items: stretch;
+    gap: clamp(14px, 3vw, 30px);
+    width: 100%;
+    min-width: 0;
+    padding: 16px 4px;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+    border-radius: 0;
+    background: transparent;
+    color: #eee;
+    text-align: left;
+    cursor: pointer;
+    transition: background .18s ease;
+}
+
+.kurocal-favorite-row:hover,
+.kurocal-favorite-row:focus-visible {
+    background: rgba(255,255,255,.045);
+    outline: none;
+}
+
+.kurocal-favorite-row img {
+    display: block;
+    width: 100%;
+    height: clamp(154px, 22vw, 224px);
+    border-radius: 16px;
+    object-fit: cover;
+    background: #222;
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+}
+
+.kurocal-favorite-row-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.kurocal-favorite-row-info strong,
+.kurocal-favorite-row-info span {
+    display: block;
+    width: 100%;
+}
+
+.kurocal-favorite-row-info strong {
+    color: #f5f5f7;
+    font-size: clamp(1.08rem, 2.2vw, 1.55rem);
+    line-height: 1.2;
+}
+
+.kurocal-favorite-row-episode {
+    color: #aaaab2;
+    font-size: clamp(.94rem, 1.6vw, 1.12rem);
+}
+
+.kurocal-favorite-row-countdown {
+    display: grid;
+    gap: 7px;
+    width: min(100%, 520px);
+    margin-top: 2px;
+    padding-top: 11px;
+    border-top: 1px solid rgba(255,255,255,.13);
+}
+
+.kurocal-favorite-row-countdown-label {
+    color: #92929b;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.kurocal-favorite-row-time {
+    color: #f5f5f7;
+    font-size: clamp(1.12rem, 2.4vw, 1.65rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.025em;
+    white-space: nowrap;
+}
+
+.kurocal-nav {
+    position: fixed;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    justify-content: space-around;
+    gap: 6px;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255,255,255,.08);
+    background: rgba(17,17,17,.96);
+    backdrop-filter: blur(16px);
+}
+
+.kurocal-nav button {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 58px;
+    padding: 5px 2px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: #999;
+    cursor: pointer;
+}
+
+.kurocal-nav button.active {
+    background: rgba(208,191,14,.14);
+    color: #f2dc4c;
+}
+
+.kurocal-nav .material-symbols-rounded {
+    font-size: 24px;
+}
+
+.kurocal-nav button span:last-child {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: .68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kurocal-detail-backdrop {
+    position: fixed;
+    z-index: 6;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    background: rgba(0,0,0,.76);
+    backdrop-filter: blur(12px);
+}
+
+.kurocal-schedule-toggle[hidden],
+.kurocal-synopsis-toggle[hidden],
+.kurocal-trailer[hidden] {
+    display: none !important;
+}
+
+.kurocal-detail {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(820px, 100%);
+    max-height: min(96dvh, 1080px);
+    overflow: auto;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 22px;
+    background: #171717;
+    box-shadow: 0 24px 70px rgba(0,0,0,.55);
+}
+
+.kurocal-detail-image {
+    display: block;
+    width: 100%;
+    height: clamp(340px, 52dvh, 560px);
+    min-height: 270px;
+    flex: 0 0 auto;
+    object-fit: cover;
+    object-position: center 24%;
+    background: #222;
+}
+
+.kurocal-detail-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 17px;
+    padding: 26px clamp(22px, 5vw, 48px) 34px;
+}
+
+.kurocal-detail-body h2 {
+    margin: 0;
+    color: #f5f5f7;
+    font-size: clamp(1.65rem, 4vw, 2.35rem);
+    line-height: 1.12;
+}
+
+.kurocal-detail-meta {
+    margin: 0;
+    color: #b9b9c0;
+    font-size: .98rem;
+    text-transform: capitalize;
+}
+
+.kurocal-detail-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.kurocal-info-chip {
+    padding: 6px 11px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 999px;
+    background: rgba(255,255,255,.055);
+    color: #d5d5da;
+    font-size: .84rem;
+    text-transform: capitalize;
+}
+
+.kurocal-info-chip.genre {
+    border-color: rgba(208,191,14,.16);
+    background: rgba(208,191,14,.07);
+    color: #e4d76e;
+}
+
+.kurocal-schedule-toggle {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 82px;
+    padding: 17px 20px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.045));
+    color: #f5f5f7;
+    font: inherit;
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.06);
+    transition: background .2s ease, transform .2s ease;
+}
+
+.kurocal-schedule-toggle:hover {
+    background: linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
+}
+
+.kurocal-schedule-toggle:active {
+    transform: scale(.99);
+}
+
+.kurocal-schedule-toggle .material-symbols-rounded {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    font-size: 23px;
+}
+
+.kurocal-schedule-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: rgba(208,191,14,.15);
+    color: #e9d95e;
+    font-family: 'Material Symbols Rounded';
+    font-feature-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 23px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    -webkit-font-smoothing: antialiased;
+}
+
+.kurocal-schedule-date {
+    font-size: clamp(.95rem, 2vw, 1.12rem);
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.kurocal-countdown-content {
+    display: grid;
+    gap: 8px;
+}
+
+.kurocal-countdown-caption {
+    color: #b8b8c0;
+    font-size: .82rem;
+    letter-spacing: .02em;
+}
+
+.kurocal-countdown-units {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: clamp(9px, 2vw, 20px);
+}
+
+.kurocal-countdown-unit {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.kurocal-countdown-unit strong {
+    color: #fff;
+    font-size: clamp(1.5rem, 4vw, 2.05rem);
+    font-weight: 600;
+    letter-spacing: -.045em;
+    line-height: 1;
+}
+
+.kurocal-countdown-unit small {
+    color: #a9a9b1;
+    font-size: .74rem;
+}
+
+.kurocal-synopsis {
+    width: 100%;
+}
+
+.kurocal-detail-description {
+    display: -webkit-box;
+    max-height: 8.4em;
+    margin: 0;
+    overflow: hidden;
+    color: #c5c5cc;
+    font-size: 1rem;
+    line-height: 1.7;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+}
+
+.kurocal-detail-description.is-expanded {
+    display: block;
+    max-height: none;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
+
+.kurocal-synopsis-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 5px;
+    padding: 3px 0;
+    border: 0;
+    background: none;
+    color: #e8d95e;
+    font: inherit;
+    font-size: .84rem;
+    cursor: pointer;
+}
+
+.kurocal-synopsis-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+}
+
+.kurocal-synopsis-toggle[hidden],
+.kurocal-translate-button[hidden] {
+    display: none !important;
+}
+
+.kurocal-translate-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 11px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 999px;
+    background: rgba(255,255,255,.055);
+    color: #c7c7ce;
+    font: inherit;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+}
+
+.kurocal-translate-button:hover:not(:disabled) {
+    background: rgba(255,255,255,.1);
+    color: #fff;
+}
+
+.kurocal-translate-button .material-symbols-rounded {
+    font-size: 18px;
+}
+
+.kurocal-translate-button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.kurocal-synopsis-toggle .material-symbols-rounded {
+    font-size: 20px;
+}
+
+.kurocal-trailer {
+    width: 100%;
+}
+
+.kurocal-trailer h3 {
+    margin: 0 0 9px;
+    font-size: 1rem;
+}
+
+.kurocal-trailer iframe {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 0;
+    border-radius: 14px;
+    background: #000;
+}
+
+.kurocal-detail-actions {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    margin-top: auto;
+}
+
+.kurocal-detail-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 13px;
+    background: rgba(255,255,255,.07);
+    color: #fff;
+    font: inherit;
+    font-size: .92rem;
+    cursor: pointer;
+}
+
+.kurocal-detail-actions .kurocal-detail-favorite.is-favorite {
+    color: #f2dc4c;
+}
+
+.kurocal-detail-actions .kurocal-add-list {
+    border-color: transparent;
+    background: #d0bf0e;
+    color: #111;
+    font-weight: 800;
+}
+
+.kurocal-detail-actions button:disabled {
+    cursor: wait;
+    opacity: .7;
+}
+
+.kurocal-detail-close {
+    position: absolute;
+    z-index: 1;
+    top: 12px;
+    right: 12px;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,.68);
+    color: #fff;
+    cursor: pointer;
+}
+
+@media (max-width: 720px) {
+    .calendar-entry-button {
+        top: max(12px, env(safe-area-inset-top));
+        right: 12px;
+        width: 50px;
+        height: 50px;
+    }
+
+    .add-anime-fab {
+        top: auto;
+        right: 14px;
+        bottom: calc(178px + env(safe-area-inset-bottom));
+    }
+
+    .kurocal-content {
+        padding: 16px 14px;
+    }
+
+    .kurocal-favorite-row {
+        grid-template-columns: 112px minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px 2px;
+    }
+
+    .kurocal-favorite-row img {
+        height: 158px;
+        border-radius: 13px;
+    }
+
+    .kurocal-favorite-row-info {
+        gap: 8px;
+    }
+
+    .kurocal-favorite-row-time {
+        white-space: normal;
+    }
+
+    .kurocal-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .kurocal-weekdays {
+        gap: 3px;
+        padding: 5px;
+    }
+
+    .kurocal-weekday {
+        padding: 8px 2px;
+    }
+
+    .kurocal-weekday span {
+        font-size: .67rem;
+    }
+
+    .kurocal-detail-image {
+        height: clamp(280px, 46dvh, 420px);
+        min-height: 250px;
+    }
+
+    .kurocal-detail-body {
+        gap: 13px;
+        padding: 20px 18px 24px;
+    }
+
+    .kurocal-detail-body h2 {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .kurocal-nav {
+        gap: 2px;
+        padding-right: 5px;
+        padding-left: 5px;
+    }
+
+    .kurocal-nav button span:last-child {
+        font-size: .6rem;
+    }
+
+    .kurocal-week-toolbar {
+        grid-template-columns: 38px minmax(0, 1fr) 38px 42px;
+        gap: 6px;
+    }
+
+    .kurocal-week-toolbar > button {
+        width: 38px;
+        height: 40px;
+    }
+
+    .kurocal-week-toolbar .kurocal-filter-button {
+        width: 42px;
+    }
+
+    .kurocal-week-toolbar h2 {
+        font-size: 1.05rem;
+    }
+
+    .kurocal-favorite-row {
+        grid-template-columns: 88px minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .kurocal-favorite-row img {
+        height: 132px;
+    }
+
+    .kurocal-favorite-row-time {
+        font-size: 1.02rem;
+    }
+
+    .kurocal-schedule-toggle {
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .kurocal-schedule-icon {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kurocal-grid,
+    .kurocal-weekdays,
+    .calendar-entry-button,
+    .kurocal-card {
+        animation: none;
+        transition: none;
     }
 }
