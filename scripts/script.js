@@ -1132,7 +1132,7 @@ function inferAnimeApiTitleAndSeason(title) {
 }
 
 function getAnimeStreamRequest(details) {
-    const defaultName = details.title?.english || details.title?.romaji || details.title?.native || '';
+    const defaultName = details.title?.romaji || details.title?.romaji || details.title?.native || '';
     const inferred = inferAnimeApiTitleAndSeason(defaultName);
     const override = ANILIST_STREAM_OVERRIDES[String(details.id)] ||
         ANIME_TITLE_STREAM_OVERRIDES[defaultName] ||
