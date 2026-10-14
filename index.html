@@ -17,7 +17,7 @@
     <meta name="theme-color" content="#121212">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="icon" href="icons/favicon.ico">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
 </head>
 <body>
 
@@ -129,6 +129,73 @@
                         <span class="material-symbols-rounded">logout</span>
                         <span>Se déconnecter</span>
                     </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="animeDetailsView" class="view-panel anime-details-view" hidden>
+            <header class="anime-details-toolbar">
+                <button type="button" class="anime-details-back" onclick="closeAniListDetails();">
+                    <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+                    <span>Retour</span>
+                </button>
+                <span class="anime-details-source">Informations AniList</span>
+            </header>
+            <div id="animeDetailsMessage" class="anime-details-message" role="status" aria-live="polite">Chargement des informations…</div>
+            <article id="animeDetailsContent" class="anime-details-content" hidden>
+                <div class="anime-details-hero">
+                    <img id="animeDetailsCover" class="anime-details-cover" alt="">
+                    <div class="anime-details-heading">
+                        <p id="animeDetailsFormat" class="anime-details-eyebrow"></p>
+                        <h1 id="animeDetailsTitle"></h1>
+                        <p id="animeDetailsAltTitle" class="anime-details-alt-title"></p>
+                        <div id="animeDetailsMeta" class="anime-details-meta"></div>
+                        <a id="animeDetailsAniListLink" class="anime-details-link" target="_blank" rel="noopener noreferrer">
+                            Voir la fiche sur AniList
+                            <span class="material-symbols-rounded" aria-hidden="true">open_in_new</span>
+                        </a>
+                    </div>
+                </div>
+                <section class="anime-details-section">
+                    <h2>Synopsis</h2>
+                    <p id="animeDetailsSynopsis"></p>
+                </section>
+                <section class="anime-details-section">
+                    <h2>Épisodes disponibles</h2>
+                    <p id="animeDetailsEpisodeSummary" class="anime-details-episode-summary" role="status" aria-live="polite"></p>
+                    <details id="animeDetailsEpisodeList" class="anime-details-episode-list" hidden>
+                        <summary></summary>
+                        <ol></ol>
+                    </details>
+                </section>
+            </article>
+        </section>
+
+        <section id="animePlayerView" class="view-panel anime-player-view" hidden>
+            <header class="anime-details-toolbar">
+                <button type="button" class="anime-details-back" onclick="closeEmptyAnimePlayer();">
+                    <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+                    <span>Retour aux épisodes</span>
+                </button>
+                <span class="anime-details-source">Lecteur</span>
+            </header>
+            <h1 id="animePlayerTitle" class="anime-player-title"></h1>
+            <div class="anime-player-episode-navigation" aria-label="Navigation des épisodes">
+                <button type="button" id="animePlayerPrevious" onclick="changeAnimePlayerEpisode(-1);" aria-label="Épisode précédent">
+                    <span class="material-symbols-rounded" aria-hidden="true">skip_previous</span>
+                    <span>Précédent</span>
+                </button>
+                <strong id="animePlayerEpisode" class="anime-player-episode-number" aria-live="polite"></strong>
+                <button type="button" id="animePlayerNext" onclick="changeAnimePlayerEpisode(1);" aria-label="Épisode suivant">
+                    <span>Suivant</span>
+                    <span class="material-symbols-rounded" aria-hidden="true">skip_next</span>
+                </button>
+            </div>
+            <div class="anime-player-stage">
+                <video controls preload="none" playsinline aria-label="Lecteur vidéo"></video>
+                <div class="anime-player-empty" id="animePlayerLoading" role="status" aria-live="polite">
+                    <span class="anime-player-spinner" aria-hidden="true"></span>
+                    <p id="animePlayerLoadingMessage">Récupération du lien vidéo…</p>
                 </div>
             </div>
         </section>
@@ -342,20 +409,38 @@
 
     <div id="cardInfoOverlay" class="card-info-overlay hidden" onclick="if(event.target === this) hideCardInfo();">
         <div class="card-info-panel">
-            <button type="button" class="card-info-close" aria-label="Fermer" title="Fermer" onclick="hideCardInfo();"><span class="material-symbols-rounded">close</span></button>
-            <div class="card-info-image"><img src="" alt=""></div>
+            <div class="card-info-image">
+                <img src="" alt="">
+                <div class="card-info-status"></div>
+                <button type="button" class="card-info-close" aria-label="Fermer" title="Fermer" onclick="hideCardInfo();"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+                <button type="button" class="card-info-finish-btn hidden" aria-label="Marquer comme vu" title="Marquer comme vu"><span class="material-symbols-rounded" aria-hidden="true">check</span></button>
+            </div>
             <div class="card-info-header">
                 <h2></h2>
-                <div class="card-info-status"></div>
             </div>
+            <div class="card-info-progress-band" hidden></div>
             <div class="card-info-details"></div>
+            <div class="card-info-synopsis">
+                <p class="card-info-description kurocal-detail-description" hidden></p>
+                <div class="kurocal-synopsis-actions">
+                    <button type="button" class="kurocal-synopsis-toggle" aria-expanded="false" hidden>
+                        <span class="material-symbols-rounded" aria-hidden="true">expand_more</span>
+                        <span>Lire la suite</span>
+                    </button>
+                    <button type="button" class="kurocal-translate-button" hidden>
+                        <span class="material-symbols-rounded" aria-hidden="true">translate</span>
+                        <span>Traduire en français</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-info-trailer kurocal-trailer" hidden></div>
             <div class="card-info-footer">
+                <button type="button" class="card-info-anilist-btn hidden" id="cardInfoAniListButton">Voir la fiche</button>
                 <button type="button" class="card-info-add-btn hidden" id="cardInfoAddButton">Ajouter à la liste</button>
                 <button type="button" class="card-info-progress-btn hidden" id="cardInfoProgressButton"></button>
                 <button type="button" class="card-info-edit-btn" onclick="openEditFromCardInfo();">Modifier</button>
             </div>
         </div>
-        <button type="button" class="card-info-finish-btn hidden" aria-label="Marquer comme terminé" title="Marquer comme terminé"><span class="material-symbols-rounded" aria-hidden="true">check</span></button>
     </div>
 
     <div class="modal" id="animeForm-manual" onclick="if(event.target === this) closeManualAddModal();">
@@ -832,7 +917,9 @@
         let pullRefreshReady = false;
         let kurocalPullRefreshTracking = false;
         let kurocalPullRefreshReady = false;
+        let kurocalSwipeTracking = false;
         let kurocalRefreshHintTimeout = null;
+        let listRefreshReloadTimeout = null;
 
         function getScrollTop() {
             return document.scrollingElement?.scrollTop || window.scrollY || 0;
@@ -894,15 +981,20 @@
                     }
                 }
                 if (pullRefreshReady) {
-                    window.location.reload();
+                    if (listRefreshReloadTimeout === null) {
+                        const hintText = pullRefreshHint?.querySelector('span:last-child');
+                        if (hintText) hintText.textContent = 'Actualisation en cours…';
+                        if (pullRefreshHint) pullRefreshHint.classList.add('active', 'refreshing');
+                        listRefreshReloadTimeout = window.setTimeout(() => {
+                            window.location.reload();
+                        }, 650);
+                    }
                 } else {
                     handleSwipe(dx, dy, duration);
+                    if (pullRefreshHint) pullRefreshHint.classList.remove('active');
                 }
                 pullRefreshTracking = false;
                 pullRefreshReady = false;
-                if (pullRefreshHint) {
-                    pullRefreshHint.classList.remove('active');
-                }
             };
 
             swipeArea.addEventListener('touchstart', handleTouchStart, { passive: true });
@@ -918,15 +1010,26 @@
                     (detail && !detail.hidden)) return;
                 touchStartY = event.touches[0].clientY;
                 touchStartX = event.touches[0].clientX;
+                const calendarPanel = document.getElementById('kurocalCalendarPanel');
+                kurocalSwipeTracking = Boolean(calendarPanel && !calendarPanel.hidden &&
+                    !event.target.closest('button, a, input, select, textarea'));
                 kurocalPullRefreshTracking = kurocalPullRefreshArea.scrollTop <= 0;
                 kurocalPullRefreshReady = false;
                 if (pullRefreshHint) pullRefreshHint.classList.remove('active', 'refreshing');
             }, { passive: true });
 
             kurocalPullRefreshArea.addEventListener('touchmove', event => {
-                if (!kurocalPullRefreshTracking || event.touches.length !== 1) return;
+                if (event.touches.length !== 1) return;
                 const dx = event.touches[0].clientX - touchStartX;
                 const dy = event.touches[0].clientY - touchStartY;
+                if (kurocalSwipeTracking && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+                    event.preventDefault();
+                    kurocalPullRefreshTracking = false;
+                    kurocalPullRefreshReady = false;
+                    if (pullRefreshHint) pullRefreshHint.classList.remove('active');
+                    return;
+                }
+                if (!kurocalPullRefreshTracking) return;
                 if (dy <= 0 || Math.abs(dy) <= Math.abs(dx)) {
                     kurocalPullRefreshTracking = false;
                     kurocalPullRefreshReady = false;
@@ -938,7 +1041,10 @@
                 if (pullRefreshHint) pullRefreshHint.classList.toggle('active', dy > 40);
             }, { passive: false });
 
-            kurocalPullRefreshArea.addEventListener('touchend', () => {
+            kurocalPullRefreshArea.addEventListener('touchend', event => {
+                const touch = event.changedTouches[0];
+                const dx = touch.clientX - touchStartX;
+                const dy = touch.clientY - touchStartY;
                 if (kurocalPullRefreshReady && document.body.classList.contains('kurocal-active')) {
                     const hintText = pullRefreshHint?.querySelector('span:last-child');
                     if (hintText) hintText.textContent = 'Actualisation en cours…';
@@ -955,16 +1061,24 @@
                                 if (pullRefreshHint) pullRefreshHint.classList.remove('active', 'refreshing');
                             }, 650);
                         });
+                } else if (kurocalSwipeTracking &&
+                    Math.abs(dx) >= 50 &&
+                    Math.abs(dx) > Math.abs(dy) * 1.2 &&
+                    document.body.classList.contains('kurocal-active')) {
+                    event.preventDefault();
+                    window.swipeKurocalDay?.(dx < 0 ? 1 : -1);
                 } else if (pullRefreshHint) {
                     pullRefreshHint.classList.remove('active');
                 }
                 kurocalPullRefreshTracking = false;
                 kurocalPullRefreshReady = false;
-            }, { passive: true });
+                kurocalSwipeTracking = false;
+            }, { passive: false });
 
             kurocalPullRefreshArea.addEventListener('touchcancel', () => {
                 kurocalPullRefreshTracking = false;
                 kurocalPullRefreshReady = false;
+                kurocalSwipeTracking = false;
                 if (pullRefreshHint) pullRefreshHint.classList.remove('active');
             }, { passive: true });
         }

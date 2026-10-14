@@ -366,7 +366,7 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
     if (grid && !error) {
         const recentQuery = await Supabase
             .from(tablename)
-            .select(`id, idanime, urlimg, nompref, statut, nbsaisons, nbepisodes, saisonencours, epencours, film, duree, favori, flag`)
+        .select(`id, idanime, urlimg, nompref, nomnative, nomromaji, statut, nbsaisons, nbepisodes, saisonencours, epencours, film, duree, favori, flag`)
             .order('id', { ascending: false })
             .limit(6);
         if (!recentQuery.error) {
@@ -390,7 +390,8 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
             const recentList = document.createElement('div');
             recentList.className = 'recent-list';
             recentItems.forEach(item => addAnimeCard({
-                id: item.id, img: item.urlimg, title: item.nompref, saisons: item.nbsaisons,
+                id: item.id, aniListId: item.idanime, img: item.urlimg, title: item.nompref, nativeTitle: item.nomnative,
+                romajiTitle: item.nomromaji, saisons: item.nbsaisons,
                 episodes: item.nbepisodes, status: item.statut, saisonencours: item.saisonencours,
                 epencours: item.epencours, film: item.film, duree: item.duree,
                 favori: item.favori, flag: item.flag
@@ -439,8 +440,11 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
 
         addAnimeCard({
             id: data_.id,
+            aniListId: data_.idanime,
             img: data_.urlimg,
             title: data_.nompref,
+            nativeTitle: data_.nomnative,
+            romajiTitle: data_.nomromaji,
             saisons: data_.nbsaisons,
             episodes: data_.nbepisodes,
             status: data_.statut,
@@ -455,7 +459,7 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
     });   
 }
 
-function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag, caption }, targetGrid = null) {
+function addAnimeCard({ id, aniListId, img, title, nativeTitle, romajiTitle, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag, caption }, targetGrid = null) {
     const grid = targetGrid || document.getElementById('gridAnime');
     if (!grid) return;
 
@@ -527,8 +531,11 @@ function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours
     card.addEventListener('click', () => {
         showCardInfo({
             id,
+            aniListId,
             img,
             title,
+            nativeTitle,
+            romajiTitle,
             saisons,
             episodes,
             status,
@@ -545,61 +552,380 @@ function addAnimeCard({ id, img, title, saisons, episodes, status, saisonencours
     grid.appendChild(card);
 }
 
-function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag, caption }, options = {}) {
+const kurolisteAniListDetailsCache = new Map();
+const kurolisteAniListDetailsRequests = new Map();
+let cardInfoRequestId = 0;
+let cardInfoSynopsisRequestId = 0;
+let cardInfoSynopsisOriginal = '';
+let cardInfoSynopsisTranslated = false;
+
+const KUROLISTE_ANILIST_DETAILS_QUERY = `query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        id
+        title {
+            romaji
+            english
+            native
+        }
+        coverImage {
+            extraLarge
+            large
+            medium
+        }
+        format
+        status
+        episodes
+        duration
+        season
+        seasonYear
+        startDate {
+            year
+            month
+            day
+        }
+        genres
+        averageScore
+        source
+        description
+        studios(isMain: true) {
+            nodes {
+                name
+            }
+        }
+        trailer {
+            id
+            site
+        }
+        siteUrl
+        nextAiringEpisode {
+            episode
+            airingAt
+        }
+    }
+}`;
+
+async function getKurolisteAniListDetails(animeId) {
+    const id = Number(animeId);
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+    if (kurolisteAniListDetailsCache.has(id)) return kurolisteAniListDetailsCache.get(id);
+    if (kurolisteAniListDetailsRequests.has(id)) return kurolisteAniListDetailsRequests.get(id);
+
+    const request = requestAniList(KUROLISTE_ANILIST_DETAILS_QUERY, { id })
+        .then(data => {
+            const media = data?.Media;
+            if (!media) throw new Error(`AniList ne connaît pas l’anime ${id}.`);
+            kurolisteAniListDetailsCache.set(id, media);
+            return media;
+        })
+        .finally(() => kurolisteAniListDetailsRequests.delete(id));
+    kurolisteAniListDetailsRequests.set(id, request);
+    return request;
+}
+
+function appendCardInfoRow(container, label, value) {
+    if (!value) return;
+    const row = document.createElement('div');
+    row.className = 'card-info-row';
+    const rowLabel = document.createElement('span');
+    rowLabel.textContent = label;
+    const rowValue = document.createElement('span');
+    rowValue.textContent = value;
+    row.append(rowLabel, rowValue);
+    container.appendChild(row);
+}
+
+function resetCardInfoSynopsis(description) {
+    const overlay = document.getElementById('cardInfoOverlay');
+    const synopsis = (description || '').trim();
+    const synopsisElement = overlay?.querySelector('.card-info-description');
+    const synopsisToggle = overlay?.querySelector('.card-info-synopsis .kurocal-synopsis-toggle');
+    const translateButton = overlay?.querySelector('.card-info-synopsis .kurocal-translate-button');
+    const toggleLabel = synopsisToggle?.querySelector('span:last-child');
+    const toggleIcon = synopsisToggle?.querySelector('.material-symbols-rounded');
+    const translateLabel = translateButton?.querySelector('span:last-child');
+    if (!synopsisElement || !synopsisToggle || !translateButton || !toggleLabel || !toggleIcon || !translateLabel) return;
+
+    cardInfoSynopsisRequestId++;
+    cardInfoSynopsisOriginal = synopsis;
+    cardInfoSynopsisTranslated = false;
+    synopsisElement.textContent = synopsis || 'Aucun synopsis fourni sur AniList.';
+    synopsisElement.hidden = false;
+    synopsisElement.classList.remove('is-expanded', 'is-unavailable');
+    synopsisElement.classList.toggle('is-unavailable', !synopsis);
+    synopsisToggle.hidden = true;
+    synopsisToggle.setAttribute('aria-expanded', 'false');
+    toggleLabel.textContent = 'Lire la suite';
+    toggleIcon.textContent = 'expand_more';
+    translateButton.hidden = !synopsis || synopsis.length < 3;
+    translateButton.disabled = false;
+    translateLabel.textContent = 'Traduire en français';
+
+    synopsisToggle.onclick = () => {
+        const expanded = synopsisElement.classList.toggle('is-expanded');
+        synopsisToggle.setAttribute('aria-expanded', String(expanded));
+        toggleLabel.textContent = expanded ? 'Réduire' : 'Lire la suite';
+        toggleIcon.textContent = expanded ? 'expand_less' : 'expand_more';
+    };
+    translateButton.onclick = async () => {
+        if (cardInfoSynopsisTranslated) {
+            cardInfoSynopsisTranslated = false;
+            synopsisElement.textContent = cardInfoSynopsisOriginal;
+            synopsisElement.classList.remove('is-expanded');
+            synopsisToggle.setAttribute('aria-expanded', 'false');
+            toggleLabel.textContent = 'Lire la suite';
+            toggleIcon.textContent = 'expand_more';
+            translateLabel.textContent = 'Traduire en français';
+            window.requestAnimationFrame(() => updateCardInfoSynopsisControls(synopsisElement, synopsisToggle));
+            return;
+        }
+
+        if (cardInfoSynopsisOriginal.length > 5000) {
+            showAppToast('Ce synopsis dépasse la limite gratuite de traduction.', 'warning');
+            return;
+        }
+
+        const requestId = ++cardInfoSynopsisRequestId;
+        const cacheKey = `${overlay.dataset.cardId}:${cardInfoSynopsisOriginal}`;
+        let translated = kurocalSynopsisTranslationCache.get(cacheKey);
+        translateButton.disabled = true;
+        translateLabel.textContent = 'Traduction…';
+        try {
+            if (!translated) {
+                translated = await translateKurocalSynopsis(cardInfoSynopsisOriginal);
+                kurocalSynopsisTranslationCache.set(cacheKey, translated);
+            }
+            if (requestId !== cardInfoSynopsisRequestId || overlay.classList.contains('hidden')) return;
+            cardInfoSynopsisTranslated = true;
+            synopsisElement.textContent = translated;
+            synopsisElement.classList.remove('is-expanded');
+            synopsisToggle.setAttribute('aria-expanded', 'false');
+            toggleLabel.textContent = 'Lire la suite';
+            toggleIcon.textContent = 'expand_more';
+            translateLabel.textContent = 'Afficher l’original';
+            window.requestAnimationFrame(() => updateCardInfoSynopsisControls(synopsisElement, synopsisToggle));
+        } catch (error) {
+            if (requestId !== cardInfoSynopsisRequestId) return;
+            console.error('Impossible de traduire le synopsis de la Kuroliste :', error);
+            showAppToast('La traduction est indisponible pour le moment. Réessaie plus tard.', 'error');
+            translateLabel.textContent = 'Traduire en français';
+        } finally {
+            if (requestId === cardInfoSynopsisRequestId) translateButton.disabled = false;
+        }
+    };
+    window.requestAnimationFrame(() => updateCardInfoSynopsisControls(synopsisElement, synopsisToggle));
+}
+
+function updateCardInfoSynopsisControls(description, toggle) {
+    if (!description || !toggle || description.hidden || description.classList.contains('is-expanded')) {
+        if (toggle) toggle.hidden = true;
+        return;
+    }
+    toggle.hidden = description.scrollHeight <= description.clientHeight + 1;
+}
+
+function renderKurolisteAniListDetails(details, requestId) {
+    const overlay = document.getElementById('cardInfoOverlay');
+    if (!overlay || requestId !== cardInfoRequestId || overlay.classList.contains('hidden')) return;
+
+    const image = overlay.querySelector('.card-info-image img');
+    const detailsEl = overlay.querySelector('.card-info-details');
+    const trailerContainer = overlay.querySelector('.card-info-trailer');
+    const title = details.title?.english || details.title?.romaji || details.title?.native || '';
+    const cover = details.coverImage?.extraLarge || details.coverImage?.large || details.coverImage?.medium;
+    if (cover && !image.getAttribute('src')) image.src = cover;
+    if (title) image.alt = title;
+
+    const chips = [];
+    if (details.genres?.length) chips.push(...details.genres);
+    const formatLabels = {
+        TV: 'Série TV',
+        TV_SHORT: 'Série courte',
+        MOVIE: 'Film',
+        SPECIAL: 'Spécial',
+        OVA: 'OVA',
+        ONA: 'ONA',
+        MUSIC: 'Clip musical'
+    };
+    if (details.format) chips.push(formatLabels[details.format] || details.format.replaceAll('_', ' '));
+    if (details.episodes) chips.push(`${details.episodes} épisodes`);
+    if (details.duration) chips.push(`${details.duration} min / épisode`);
+    const seasonLabels = { WINTER: 'Hiver', SPRING: 'Printemps', SUMMER: 'Été', FALL: 'Automne' };
+    if (details.season && details.seasonYear) chips.push(`${seasonLabels[details.season] || details.season} ${details.seasonYear}`);
+    if (details.averageScore) chips.push(`Note AniList ${details.averageScore}/100`);
+
+    detailsEl.replaceChildren();
+    chips.forEach((value, index) => {
+        const chip = document.createElement('span');
+        chip.className = index < (details.genres?.length || 0) ? 'kurocal-info-chip genre' : 'kurocal-info-chip';
+        chip.textContent = value;
+        detailsEl.appendChild(chip);
+    });
+    appendCardInfoRow(detailsEl, 'Nom japonais romaji', details.title?.romaji);
+    appendCardInfoRow(detailsEl, 'Nom japonais natif', details.title?.native);
+    const source = details.source ? details.source.replaceAll('_', ' ').toLowerCase() : '';
+    appendCardInfoRow(detailsEl, 'Source', source ? source.charAt(0).toLocaleUpperCase('fr-FR') + source.slice(1) : '');
+    appendCardInfoRow(detailsEl, 'Studio', details.studios?.nodes?.map(studio => studio.name).filter(Boolean).join(', '));
+    const airingStatusLabels = {
+        FINISHED: 'Diffusion terminée',
+        RELEASING: 'En cours de diffusion',
+        NOT_YET_RELEASED: 'Pas encore diffusé',
+        CANCELLED: 'Diffusion annulée',
+        HIATUS: 'En pause'
+    };
+    appendCardInfoRow(detailsEl, 'Statut de diffusion', airingStatusLabels[details.status] || details.status?.replaceAll('_', ' '));
+    if (details.startDate?.year) {
+        const date = new Intl.DateTimeFormat('fr-FR', {
+            day: details.startDate.day ? 'numeric' : undefined,
+            month: details.startDate.month ? 'long' : undefined,
+            year: 'numeric'
+        }).format(new Date(details.startDate.year, (details.startDate.month || 1) - 1, details.startDate.day || 1));
+        appendCardInfoRow(detailsEl, 'Date de début', date);
+    }
+
+    const description = (details.description || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&#39;|&quot;|&amp;|&lt;|&gt;/gi, entity => ({
+        '&#39;': "'",
+        '&quot;': '"',
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>'
+    })[entity.toLowerCase()] || entity).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    resetCardInfoSynopsis(description);
+
+    trailerContainer.replaceChildren();
+    trailerContainer.hidden = true;
+    if (details.trailer?.site?.toLowerCase() === 'youtube' && details.trailer.id) {
+        const heading = document.createElement('h3');
+        heading.textContent = 'Bande-annonce';
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(details.trailer.id)}`;
+        iframe.title = `Bande-annonce de ${title || image.alt}`;
+        iframe.loading = 'lazy';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        iframe.allowFullscreen = true;
+        trailerContainer.append(heading, iframe);
+        trailerContainer.hidden = false;
+    }
+}
+
+function showCardInfo({ id, aniListId, img, title, nativeTitle, romajiTitle, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag, caption }, options = {}) {
     const { isSearchResult = false, searchData = null } = options;
     const overlay = document.getElementById('cardInfoOverlay');
     if (!overlay) return;
+    const requestId = ++cardInfoRequestId;
 
     const image = overlay.querySelector('.card-info-image img');
     const titleEl = overlay.querySelector('.card-info-header h2');
     const statusEl = overlay.querySelector('.card-info-status');
+    const progressBand = overlay.querySelector('.card-info-progress-band');
     const detailsEl = overlay.querySelector('.card-info-details');
+    const descriptionEl = overlay.querySelector('.card-info-description');
+    const trailerContainer = overlay.querySelector('.card-info-trailer');
+    const synopsisToggle = overlay.querySelector('.card-info-synopsis .kurocal-synopsis-toggle');
+    const translateButton = overlay.querySelector('.card-info-synopsis .kurocal-translate-button');
     const addButton = overlay.querySelector('.card-info-add-btn');
     const progressButton = overlay.querySelector('.card-info-progress-btn');
     const editButton = overlay.querySelector('.card-info-edit-btn');
     const finishButton = overlay.querySelector('.card-info-finish-btn');
+    const aniListButton = overlay.querySelector('.card-info-anilist-btn');
 
     image.src = img || '';
     image.alt = title || '';
     titleEl.textContent = title || 'Sans titre';
-    statusEl.textContent =
-        status === 'toview' ? 'À voir' :
-        status === 'next' ? 'Suivant' :
-        status === 'watching' ? 'En cours' :
-        status === 'finished' ? 'Terminé' :
-        status === 'waiting' ? 'En attente' :
-        status === 'dropped' ? 'Abandonné' :
-        status === 'restart' ? 'Recommencer' :
-        status === 'again' ? 'À revoir' :
-        status || 'Statut inconnu';
+    const statusLabels = {
+        toview: 'À voir',
+        next: 'Suivant',
+        watching: 'En cours',
+        finished: 'Terminé',
+        waiting: 'En attente',
+        dropped: 'Abandonné',
+        restart: 'Recommencer',
+        again: 'À revoir'
+    };
+    statusEl.textContent = statusLabels[status] || status || 'Statut inconnu';
+    statusEl.className = `card-info-status status-${status || 'unknown'}`;
 
     const effectiveType = (searchData?.type === 'Film' || film == 1) ? 'Film' : 'Série';
     const durationValue = getDurationInMinutes(searchData?.duration || duree);
     const episodeValue = Number(searchData?.nbepisodes || episodes || 0);
 
-    const rows = [];
-    rows.push({ label: 'Type', value: effectiveType });
+    const chips = [];
+    chips.push(effectiveType);
     if (effectiveType === 'Film') {
-        rows.push({ label: 'Durée', value: durationValue ? `${durationValue} min` : 'Non renseignée' });
+        chips.push(durationValue ? `${durationValue} min` : 'Durée inconnue');
     } else {
-        rows.push({ label: 'Épisodes', value: episodeValue ? `${episodeValue} Ep` : 'Non renseignés' });
-        if (status === 'watching' || status === 'dropped' || status === 'waiting') {
-            rows.push({ label: 'Progression', value: `Ep ${epencours || 0}` });
-        }
+        chips.push(episodeValue ? `${episodeValue} épisodes` : 'Épisodes inconnus');
+        if (Number(saisons) > 1) chips.push(`${saisons} saisons`);
     }
-    rows.push({ label: 'Nom japonais romaji', value: searchData?.romajiTitle || title || 'Non renseigné' });
-    rows.push({ label: 'Nom japonais natif', value: searchData?.nativeTitle || 'Non renseigné' });
-    if (searchData?.description || caption) {
-        rows.push({ label: 'Synopsis', value: searchData?.description || caption });
-    }
+    if (favori == 1) chips.push('Favori');
+    if (flag == 1) chips.push('Important');
 
-    detailsEl.innerHTML = '';
+    detailsEl.replaceChildren();
+    chips.forEach(value => {
+        const chip = document.createElement('span');
+        chip.className = 'kurocal-info-chip';
+        chip.textContent = value;
+        detailsEl.appendChild(chip);
+    });
+
+    const rows = [
+        { label: 'Nom japonais romaji', value: searchData?.romajiTitle || romajiTitle || '' },
+        { label: 'Nom japonais natif', value: searchData?.nativeTitle || nativeTitle || '' }
+    ];
     rows.forEach(({ label, value }) => {
+        if (!value || value === title) return;
         const row = document.createElement('div');
         row.className = 'card-info-row';
-        row.innerHTML = `<span>${label}</span><span>${value}</span>`;
+        const rowLabel = document.createElement('span');
+        rowLabel.textContent = label;
+        const rowValue = document.createElement('span');
+        rowValue.textContent = value;
+        row.append(rowLabel, rowValue);
         detailsEl.appendChild(row);
     });
+
+    const description = (searchData?.description || caption || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    resetCardInfoSynopsis(description);
+    if (!description && isSearchResult) descriptionEl.hidden = true;
+    const mediaAniListId = Number(searchData?.id || aniListId);
+    if (!description && !isSearchResult && Number.isSafeInteger(mediaAniListId) && mediaAniListId > 0) {
+        descriptionEl.textContent = 'Chargement des informations AniList…';
+        descriptionEl.classList.add('is-unavailable');
+        synopsisToggle.hidden = true;
+        translateButton.hidden = true;
+    }
+    if (trailerContainer) {
+        trailerContainer.replaceChildren();
+        trailerContainer.hidden = true;
+    }
+    if (aniListButton) {
+        aniListButton.classList.toggle('hidden', !Number.isSafeInteger(mediaAniListId) || mediaAniListId <= 0);
+        aniListButton.onclick = () => openAniListDetails(mediaAniListId);
+    }
+
+    progressBand.replaceChildren();
+    const progressEpisode = Number(epencours) || 0;
+    const canShowProgress = !isSearchResult && status !== 'finished' && effectiveType !== 'Film' &&
+        ['watching', 'waiting', 'dropped', 'restart', 'again'].includes(status) &&
+        (progressEpisode > 0 || episodeValue > 0);
+    progressBand.hidden = !canShowProgress;
+    if (canShowProgress) {
+        const icon = document.createElement('span');
+        icon.className = 'material-symbols-rounded';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = 'play_circle';
+        const progressText = document.createElement('span');
+        progressText.className = 'card-info-progress-text';
+        const progressLabel = document.createElement('small');
+        progressLabel.textContent = 'Ta progression';
+        const progressValue = document.createElement('strong');
+        const seasonLabel = Number(saisons) > 1 && Number(saisonencours) > 0
+            ? `Saison ${saisonencours} · `
+            : '';
+        progressValue.textContent = `${seasonLabel}Épisode ${progressEpisode}${episodeValue ? ` / ${episodeValue}` : ''}`;
+        progressText.append(progressLabel, progressValue);
+        progressBand.append(icon, progressText);
+    }
 
     if (isSearchResult && addButton) {
         addButton.classList.remove('hidden');
@@ -646,7 +972,9 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
         if (addButton) addButton.classList.add('hidden');
         if (editButton) editButton.classList.remove('hidden');
         if (finishButton) {
-            finishButton.classList.toggle('hidden', status === 'finished');
+            finishButton.classList.toggle('hidden', isSearchResult || status === 'finished');
+            finishButton.setAttribute('aria-label', 'Marquer comme vu');
+            finishButton.title = 'Marquer comme vu';
             finishButton.disabled = false;
             finishButton.onclick = async () => {
                 finishButton.disabled = true;
@@ -657,9 +985,9 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
         }
         if (progressButton) {
             const canAdvance = film != 1 && status === 'watching';
-            const canStart = film != 1 && status === 'toview';
+            const canStart = film != 1 && status !== 'watching' && status !== 'finished';
             progressButton.classList.toggle('hidden', !canAdvance && !canStart);
-            progressButton.textContent = canStart ? 'Commencer à l’épisode 1' : 'Épisode suivant';
+            progressButton.textContent = canStart ? 'Marquer comme commencé' : 'Épisode suivant';
             progressButton.onclick = async () => {
                 progressButton.disabled = true;
                 const updated = await updateEp(
@@ -676,12 +1004,460 @@ function showCardInfo({ id, img, title, saisons, episodes, status, saisonencours
     }
 
     overlay.classList.remove('hidden');
+    if (!isSearchResult && Number.isSafeInteger(mediaAniListId) && mediaAniListId > 0) {
+        getKurolisteAniListDetails(mediaAniListId)
+            .then(details => renderKurolisteAniListDetails(details, requestId))
+            .catch(error => {
+                if (requestId !== cardInfoRequestId || overlay.classList.contains('hidden')) return;
+                console.error(`Impossible de charger les détails AniList de l’anime ${mediaAniListId} :`, error);
+                if (!description) {
+                    descriptionEl.textContent = 'Les informations AniList sont indisponibles pour le moment.';
+                    descriptionEl.hidden = false;
+                    descriptionEl.classList.add('is-unavailable');
+                    synopsisToggle.hidden = true;
+                    translateButton.hidden = true;
+                }
+                showAppToast('Impossible de charger les détails AniList de cet anime.', 'error');
+            });
+    } else if (!isSearchResult && !description) {
+        descriptionEl.textContent = 'Aucun synopsis enregistré et aucun identifiant AniList pour récupérer les détails.';
+        descriptionEl.hidden = false;
+        descriptionEl.classList.add('is-unavailable');
+        synopsisToggle.hidden = true;
+        translateButton.hidden = true;
+    }
 }
 
 function hideCardInfo() {
+    cardInfoRequestId++;
+    cardInfoSynopsisRequestId++;
     const overlay = document.getElementById('cardInfoOverlay');
     if (!overlay) return;
     overlay.classList.add('hidden');
+}
+
+let animeDetailsReturnView = 'gridAnime';
+let animePlayerReturnView = 'animeDetailsView';
+let animePlayerCurrentEpisode = 0;
+let animePlayerEpisodes = [];
+let animeStreamEpisodes = [];
+let animeStreamRequestStatus = 'idle';
+let animeStreamRequestError = '';
+let animeStreamRequestPromise = null;
+let animeStreamRequestId = 0;
+let animePlayerLoadId = 0;
+
+const ANIME_STREAM_API_BASE_URL = 'https://kuroni-api.duckdns.org';
+const ANILIST_STREAM_OVERRIDES = {
+    // Add an AniList ID to override the API's exact title, season/part and language:
+    // '12345': { name: 'Exact API title', season: 'saison2-part2', version: 'vostfr' }
+};
+const ANIME_TITLE_STREAM_OVERRIDES = {
+    // Optional exact AniList title overrides when an ID-specific entry is inconvenient:
+    // 'Gate 2': { name: 'Gate', season: 'saison2' }
+};
+const animeStreamEpisodesCache = new Map();
+const animeStreamEpisodesRequests = new Map();
+
+function getReleasedAniListEpisodeCount(details) {
+    if (details.status === 'RELEASING') {
+        const nextEpisode = Number(details.nextAiringEpisode?.episode);
+        return Number.isSafeInteger(nextEpisode) && nextEpisode > 0 ? Math.max(0, nextEpisode - 1) : null;
+    }
+    if (details.status === 'FINISHED') {
+        if (details.episodes == null) return null;
+        const totalEpisodes = Number(details.episodes);
+        return Number.isSafeInteger(totalEpisodes) && totalEpisodes >= 0 ? totalEpisodes : null;
+    }
+    if (details.status === 'NOT_YET_RELEASED') return 0;
+    return null;
+}
+
+function appendAniListDetailMeta(container, label, value) {
+    if (!value) return;
+    const item = document.createElement('span');
+    item.className = 'anime-details-chip';
+    item.textContent = `${label} : ${value}`;
+    container.appendChild(item);
+}
+
+function normalizeAnimeSeasonNumber(value) {
+    const normalized = String(value).toLowerCase();
+    const wordNumbers = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5 };
+    if (wordNumbers[normalized]) return wordNumbers[normalized];
+    if (/^\d+$/.test(normalized)) return Number(normalized);
+    const romanNumbers = { i: 1, ii: 2, iii: 3, iv: 4 };
+    return romanNumbers[normalized] || null;
+}
+
+function inferAnimeApiTitleAndSeason(title) {
+    const normalizedTitle = String(title || '').trim();
+    const seasonPattern = /(?:\b(?:season|saison)\s*(\d+|i{1,3}|iv)\b|\b(first|second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+season\b)/i;
+    const seasonMatch = seasonPattern.exec(normalizedTitle);
+    let name = normalizedTitle;
+    let seasonNumber = 1;
+    let suffix = '';
+
+    if (seasonMatch) {
+        const marker = seasonMatch[0];
+        const seasonValue = seasonMatch[1] || seasonMatch[2].replace(/(\d+)(?:st|nd|rd|th)$/i, '$1');
+        seasonNumber = normalizeAnimeSeasonNumber(seasonValue) || 1;
+        name = normalizedTitle.slice(0, seasonMatch.index).replace(/[\s\-–—:]+$/, '').trim();
+        suffix = normalizedTitle.slice(seasonMatch.index + marker.length);
+    }
+
+    const partPattern = /\b(?:part|partie|cour)\s*(\d+|i{1,3}|iv)\b/i;
+    const partMatch = partPattern.exec(suffix || normalizedTitle);
+    if (!seasonMatch && partMatch) {
+        name = normalizedTitle.slice(0, partMatch.index).replace(/[\s\-–—:]+$/, '').trim();
+    }
+    const partNumber = partMatch ? normalizeAnimeSeasonNumber(partMatch[1]) : null;
+
+    if (!seasonMatch && !partMatch) {
+        const sequelTitle = normalizedTitle.match(/^(.+?)[\s\-–—:]+(second|third|fourth|fifth|(?:2|3|4|5|6|7|8|9|10)(?:st|nd|rd|th)?)$/i);
+        if (sequelTitle) {
+            const sequelValue = sequelTitle[2].replace(/(\d+)(?:st|nd|rd|th)$/i, '$1');
+            const sequelNumber = normalizeAnimeSeasonNumber(sequelValue);
+            if (sequelNumber) {
+                name = sequelTitle[1].trim();
+                seasonNumber = sequelNumber;
+            }
+        }
+    }
+
+    return {
+        name: name || normalizedTitle,
+        season: `saison${seasonNumber}${partNumber ? `-part${partNumber}` : ''}`
+    };
+}
+
+function getAnimeStreamRequest(details) {
+    const defaultName = details.title?.english || details.title?.romaji || details.title?.native || '';
+    const inferred = inferAnimeApiTitleAndSeason(defaultName);
+    const override = ANILIST_STREAM_OVERRIDES[String(details.id)] ||
+        ANIME_TITLE_STREAM_OVERRIDES[defaultName] ||
+        {};
+    return {
+        name: override.name || inferred.name,
+        season: override.season || inferred.season,
+        version: override.version || 'vostfr'
+    };
+}
+
+async function fetchAnimeStreamEpisodes(details) {
+    const request = getAnimeStreamRequest(details);
+    if (!request.name) throw new Error('AniList ne fournit aucun titre pour construire la requête.');
+    const cacheKey = `${request.name}\u0000${request.season}\u0000${request.version}`;
+    if (animeStreamEpisodesCache.has(cacheKey)) return animeStreamEpisodesCache.get(cacheKey);
+    if (animeStreamEpisodesRequests.has(cacheKey)) return animeStreamEpisodesRequests.get(cacheKey);
+
+    const query = new URLSearchParams({
+        n: request.name,
+        s: request.season,
+        v: request.version
+    }).toString().replace(/\+/g, '%20');
+    const apiBase = ANIME_STREAM_API_BASE_URL.replace(/\/+$/, '');
+    if (window.location.protocol === 'https:' && apiBase.startsWith('http://')) {
+        throw new Error('GitHub Pages exige une API accessible en HTTPS. Configure une URL HTTPS pour ton serveur.');
+    }
+    const promise = fetch(`${apiBase}/api/getAnimeLink?${query}`, {
+        headers: { Accept: 'application/json' }
+    }).then(async response => {
+        let payload;
+        try {
+            payload = await response.json();
+        } catch (error) {
+            throw new Error(`L’API n’a pas renvoyé du JSON valide (HTTP ${response.status}).`, { cause: error });
+        }
+        if (!response.ok) {
+            const reason = payload && typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`;
+            throw new Error(`L’API de lecture a répondu : ${reason}`);
+        }
+        if (!Array.isArray(payload)) throw new TypeError('La réponse de l’API doit être une liste JSON d’épisodes.');
+
+        const episodesByNumber = new Map();
+        payload.forEach((item, index) => {
+            if (!Number.isSafeInteger(item?.episode) || item.episode < 0 || typeof item.url !== 'string' || !item.url.trim()) {
+                throw new TypeError(`L’épisode reçu à la position ${index + 1} ne contient pas un numéro et une URL valides.`);
+            }
+            const source = new URL(item.url.trim(), `${apiBase}/`);
+            if (!['http:', 'https:'].includes(source.protocol)) {
+                throw new TypeError(`L’URL reçue pour l’épisode ${item.episode + 1} n’est pas une URL HTTP(S).`);
+            }
+            if (window.location.protocol === 'https:' && source.protocol !== 'https:') {
+                throw new Error('Les fichiers vidéo doivent aussi être accessibles en HTTPS depuis GitHub Pages.');
+            }
+            const displayedEpisode = item.episode + 1;
+            if (!episodesByNumber.has(displayedEpisode)) {
+                episodesByNumber.set(displayedEpisode, {
+                    episode: displayedEpisode,
+                    sourceUrl: source.href
+                });
+            }
+        });
+        const episodes = [...episodesByNumber.values()].sort((left, right) => left.episode - right.episode);
+        animeStreamEpisodesCache.set(cacheKey, episodes);
+        return episodes;
+    }).finally(() => animeStreamEpisodesRequests.delete(cacheKey));
+    animeStreamEpisodesRequests.set(cacheKey, promise);
+    return promise;
+}
+
+function showAnimePlayerState(state, message) {
+    const overlay = document.getElementById('animePlayerLoading');
+    const label = document.getElementById('animePlayerLoadingMessage');
+    const video = document.querySelector('.anime-player-stage video');
+    if (!overlay || !label || !video) return;
+    overlay.hidden = false;
+    overlay.classList.toggle('is-error', state === 'error');
+    overlay.querySelector('.anime-player-spinner')?.toggleAttribute('hidden', state !== 'loading');
+    label.textContent = message;
+}
+
+function loadAnimePlayerEpisode(episode) {
+    const video = document.querySelector('.anime-player-stage video');
+    const overlay = document.getElementById('animePlayerLoading');
+    if (!video || !overlay) return;
+    const loadId = ++animePlayerLoadId;
+    animePlayerCurrentEpisode = episode;
+    updateAnimePlayerEpisodeNavigation();
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    showAnimePlayerState('loading', 'Récupération du lien vidéo…');
+
+    if (animeStreamRequestStatus === 'loading' && animeStreamRequestPromise) {
+        animeStreamRequestPromise.then(() => {
+            if (loadId !== animePlayerLoadId) return;
+            loadAnimePlayerEpisodeSource(episode, loadId);
+        }).catch(error => {
+            if (loadId !== animePlayerLoadId) return;
+            showAnimePlayerState('error', `Impossible de récupérer les épisodes : ${error.message}`);
+        });
+        return;
+    }
+    if (animeStreamRequestStatus === 'error') {
+        showAnimePlayerState('error', animeStreamRequestError || 'Impossible de récupérer les épisodes.');
+        return;
+    }
+    loadAnimePlayerEpisodeSource(episode, loadId);
+}
+
+function loadAnimePlayerEpisodeSource(episode, loadId) {
+    const video = document.querySelector('.anime-player-stage video');
+    const record = animeStreamEpisodes.find(item => item.episode === episode);
+    if (!video || !record) {
+        showAnimePlayerState('error', `Aucun lien vidéo disponible pour l’épisode ${episode}.`);
+        return;
+    }
+    video.oncanplay = () => {
+        if (loadId === animePlayerLoadId) document.getElementById('animePlayerLoading').hidden = true;
+    };
+    video.onerror = () => {
+        if (loadId === animePlayerLoadId) {
+            showAnimePlayerState('error', 'La vidéo ne peut pas être lue. Vérifie le format et l’URL du fichier.');
+        }
+    };
+    video.src = record.sourceUrl;
+    video.load();
+    showAnimePlayerState('loading', 'Chargement de la vidéo…');
+}
+
+function openAnimePlayer(episode) {
+    const title = document.getElementById('animeDetailsTitle')?.textContent || 'Anime';
+    animePlayerReturnView = 'animeDetailsView';
+    document.getElementById('animePlayerTitle').textContent = title;
+    showView('animePlayerView');
+    loadAnimePlayerEpisode(episode);
+}
+
+function updateAnimePlayerEpisodeNavigation() {
+    const episodeLabel = document.getElementById('animePlayerEpisode');
+    const previousButton = document.getElementById('animePlayerPrevious');
+    const nextButton = document.getElementById('animePlayerNext');
+    if (!episodeLabel || !previousButton || !nextButton) return;
+    episodeLabel.textContent = `ÉPISODE ${animePlayerCurrentEpisode}`;
+    const episodeIndex = animePlayerEpisodes.findIndex(item => item.episode === animePlayerCurrentEpisode);
+    previousButton.disabled = episodeIndex <= 0;
+    nextButton.disabled = episodeIndex < 0 || episodeIndex >= animePlayerEpisodes.length - 1;
+}
+
+function changeAnimePlayerEpisode(offset) {
+    const currentIndex = animePlayerEpisodes.findIndex(item => item.episode === animePlayerCurrentEpisode);
+    const nextItem = animePlayerEpisodes[currentIndex + offset];
+    if (!nextItem) return;
+    loadAnimePlayerEpisode(nextItem.episode);
+}
+
+function closeEmptyAnimePlayer() {
+    showView(animePlayerReturnView);
+}
+
+function renderAniListEpisodeList(episodes) {
+    const list = document.querySelector('#animeDetailsEpisodeList ol');
+    if (!list) return;
+    const fragment = document.createDocumentFragment();
+    episodes.forEach(({ episode }) => {
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'anime-details-episode-button';
+        button.textContent = `Épisode ${episode}`;
+        button.addEventListener('click', () => openAnimePlayer(episode));
+        item.appendChild(button);
+        fragment.appendChild(item);
+    });
+    list.replaceChildren(fragment);
+}
+
+function updateAniListEpisodeList(episodes, message) {
+    const summary = document.getElementById('animeDetailsEpisodeSummary');
+    const episodeList = document.getElementById('animeDetailsEpisodeList');
+    if (!summary || !episodeList) return;
+    summary.textContent = message;
+    if (episodes.length) {
+        episodeList.hidden = false;
+        episodeList.open = false;
+        episodeList.dataset.loaded = 'true';
+        episodeList.querySelector('summary').textContent = `Afficher les ${episodes.length} épisodes disponibles`;
+        renderAniListEpisodeList(episodes);
+    } else {
+        episodeList.hidden = true;
+        episodeList.querySelector('ol').replaceChildren();
+    }
+}
+
+function startAnimeStreamRequest(details) {
+    const requestId = ++animeStreamRequestId;
+    animeStreamEpisodes = [];
+    animePlayerEpisodes = [];
+    animeStreamRequestError = '';
+    if (details.format === 'MOVIE') {
+        animeStreamRequestStatus = 'ready';
+        updateAniListEpisodeList([], 'Cette fiche AniList est un film : aucun épisode n’est à charger.');
+        return;
+    }
+    animeStreamRequestStatus = 'loading';
+    const request = fetchAnimeStreamEpisodes(details);
+    animeStreamRequestPromise = request;
+    request.then(episodes => {
+        if (requestId !== animeStreamRequestId) return;
+        animeStreamEpisodes = episodes;
+        animePlayerEpisodes = episodes;
+        animeStreamRequestStatus = 'ready';
+        updateAnimePlayerEpisodeNavigation();
+        if (episodes.length) {
+            updateAniListEpisodeList(episodes, `${episodes.length} épisode${episodes.length > 1 ? 's' : ''} disponible${episodes.length > 1 ? 's' : ''} depuis ton serveur.`);
+        } else {
+            updateAniListEpisodeList([], 'Aucun lien vidéo n’a été renvoyé par le serveur pour cette saison.');
+        }
+    }).catch(error => {
+        if (requestId !== animeStreamRequestId) return;
+        console.error('Impossible de récupérer les épisodes depuis le serveur :', error);
+        animeStreamRequestStatus = 'error';
+        animeStreamRequestError = error instanceof TypeError
+            ? 'Le navigateur n’a pas pu joindre l’API. Vérifie le CORS pour ton domaine GitHub Pages, le certificat HTTPS et la connexion réseau.'
+            : error.message || 'Erreur inconnue pendant la récupération des épisodes.';
+        updateAniListEpisodeList([], `Impossible de charger les épisodes : ${animeStreamRequestError}`);
+        showAppToast('Impossible de charger les épisodes depuis ton serveur.', 'error');
+    });
+}
+
+function renderAniListDetails(details) {
+    const content = document.getElementById('animeDetailsContent');
+    const message = document.getElementById('animeDetailsMessage');
+    const image = document.getElementById('animeDetailsCover');
+    const title = details.title?.english || details.title?.romaji || details.title?.native || 'Titre inconnu';
+    const cover = details.coverImage?.extraLarge || details.coverImage?.large || details.coverImage?.medium || '';
+    const formatLabels = { TV: 'Série TV', TV_SHORT: 'Série courte', MOVIE: 'Film', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Spécial' };
+    const statusLabels = { FINISHED: 'Terminée', RELEASING: 'En cours de diffusion', NOT_YET_RELEASED: 'À venir', CANCELLED: 'Annulée', HIATUS: 'En pause' };
+    const releasedCount = getReleasedAniListEpisodeCount(details);
+    const meta = document.getElementById('animeDetailsMeta');
+    const episodeSummary = document.getElementById('animeDetailsEpisodeSummary');
+    const episodeList = document.getElementById('animeDetailsEpisodeList');
+    const synopsis = (details.description || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&#39;|&quot;|&amp;|&lt;|&gt;/gi, entity => ({
+            '&#39;': "'", '&quot;': '"', '&amp;': '&', '&lt;': '<', '&gt;': '>'
+        }[entity.toLowerCase()] || entity));
+    const year = details.startDate?.year || details.seasonYear;
+    const status = statusLabels[details.status] || 'Statut inconnu';
+
+    document.getElementById('animeDetailsTitle').textContent = title;
+    document.getElementById('animeDetailsFormat').textContent = formatLabels[details.format] || 'Anime';
+    document.getElementById('animeDetailsAltTitle').textContent =
+        details.title?.native && details.title.native !== title ? details.title.native : (details.title?.romaji !== title ? details.title?.romaji || '' : '');
+    document.getElementById('animeDetailsSynopsis').textContent = synopsis.trim() || 'Aucun synopsis fourni sur AniList.';
+    document.getElementById('animeDetailsAniListLink').href = details.siteUrl || `https://anilist.co/anime/${details.id}`;
+    image.src = cover;
+    image.alt = title;
+    meta.replaceChildren();
+    appendAniListDetailMeta(meta, 'Année', year);
+    appendAniListDetailMeta(meta, 'Statut', status);
+    appendAniListDetailMeta(meta, 'Total annoncé', details.episodes ? `${details.episodes} épisodes` : '');
+    appendAniListDetailMeta(meta, 'Studio', details.studios?.nodes?.map(studio => studio.name).filter(Boolean).join(', '));
+
+    if (details.format === 'MOVIE') {
+        episodeSummary.textContent = 'Ce titre est un film ; il ne possède pas de liste d’épisodes.';
+        episodeList.hidden = true;
+    } else if (releasedCount === null) {
+        episodeSummary.textContent = 'Chargement des épisodes disponibles depuis ton serveur…';
+        episodeList.hidden = true;
+    } else {
+        episodeSummary.textContent = 'Chargement des épisodes disponibles depuis ton serveur…';
+        episodeList.hidden = releasedCount === 0;
+        episodeList.open = false;
+        episodeList.dataset.loaded = 'false';
+        episodeList.querySelector('summary').textContent = `Épisodes disponibles`;
+        episodeList.ontoggle = () => {
+            if (episodeList.open && episodeList.dataset.loaded !== 'true') {
+                const fallbackEpisodes = Array.from({ length: releasedCount }, (_, index) => ({ episode: index + 1 }));
+                renderAniListEpisodeList(fallbackEpisodes);
+                episodeList.dataset.loaded = 'true';
+            }
+        };
+    }
+
+    message.hidden = true;
+    content.hidden = false;
+    startAnimeStreamRequest(details);
+}
+
+async function openAniListDetails(animeId) {
+    const id = Number(animeId);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        showAppToast('Cet anime ne possède pas d’identifiant AniList valide.', 'error');
+        return;
+    }
+
+    const activeView = document.querySelector('.view-panel.active');
+    animeDetailsReturnView = activeView?.id && activeView.id !== 'animeDetailsView' ? activeView.id : 'gridAnime';
+    hideCardInfo();
+    const content = document.getElementById('animeDetailsContent');
+    const message = document.getElementById('animeDetailsMessage');
+    if (!content || !message) return;
+    ++animeStreamRequestId;
+    content.hidden = true;
+    message.textContent = 'Chargement des informations AniList…';
+    message.hidden = false;
+    showView('animeDetailsView');
+
+    try {
+        const details = await getKurolisteAniListDetails(id);
+        if (document.getElementById('animeDetailsView')?.classList.contains('active')) {
+            renderAniListDetails(details);
+        }
+    } catch (error) {
+        console.error(`Impossible de charger la fiche AniList de l’anime ${id} :`, error);
+        message.textContent = 'Impossible de charger cette fiche pour le moment. Vérifie ta connexion et réessaie.';
+        showAppToast('Impossible de charger les informations AniList.', 'error');
+    }
+}
+
+function closeAniListDetails() {
+    showView(animeDetailsReturnView);
 }
 
 function openEditFromCardInfo() {
@@ -2917,6 +3693,20 @@ function moveKurocalWeek(amount) {
     kurocalSlideDirection = amount > 0 ? 'next' : 'previous';
     renderKurocalWeekdays();
 }
+
+function swipeKurocalDay(amount) {
+    if (!amount) return;
+    kurocalSelectedDate = addKurocalDays(kurocalSelectedDate, amount);
+    const nextWeekStart = getKurocalWeekStart(kurocalSelectedDate);
+    if (getKurocalDateKey(kurocalWeekStart) !== getKurocalDateKey(nextWeekStart)) {
+        kurocalWeekStart = nextWeekStart;
+        kurocalSlideDirection = amount > 0 ? 'next' : 'previous';
+    }
+    renderKurocalWeekdays();
+    loadKurocalWeek(nextWeekStart);
+}
+
+window.swipeKurocalDay = swipeKurocalDay;
 
 function initializeKurocal() {
     const hideHentai = document.getElementById('kurocalHideHentai');
