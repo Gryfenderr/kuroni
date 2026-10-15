@@ -1621,13 +1621,16 @@ function clearModal2() {
 async function login (login, mdp) {
     const authenticated = await getUser(login, CryptoJS.SHA1(mdp).toString());
     if (authenticated) {
-        window.location = "index.html";
+        window.location = "index.html?fromLogin";
     }
     return authenticated;
 }
 
 function setsess({ nomsess, valsess}){
     sessionStorage.setItem(nomsess, valsess);
+    if (nomsess === "username") {
+        localStorage.setItem(nomsess, valsess);
+    }
 }
 
 async function getrowinfos(id) {
