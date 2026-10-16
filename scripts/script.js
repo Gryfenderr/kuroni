@@ -29,32 +29,67 @@ function displayQueuedAppToasts() {
     }
 }
 
-function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel = 'Confirmer') {
+function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel = 'Confirmer', variant = '') {
     return new Promise(resolve => {
         const dialog = document.getElementById('confirmDialog');
+        const dialogCard = dialog?.querySelector('.confirm-dialog');
         const titleEl = document.getElementById('confirmDialogTitle');
         const messageEl = document.getElementById('confirmDialogMessage');
+        const icon = dialog?.querySelector('.confirm-dialog-icon');
+        const acceptLabelEl = document.getElementById('confirmAcceptLabel');
         const cancel = document.getElementById('confirmCancel');
         const accept = document.getElementById('confirmAccept');
         if (!dialog || !titleEl || !messageEl || !cancel || !accept) {
             resolve(false);
             return;
         }
+        dialogCard?.classList.toggle('is-logout', variant === 'logout');
+        dialog.classList.remove('is-logging-out');
         titleEl.textContent = title;
-        messageEl.textContent = message;
-        accept.textContent = acceptLabel;
+        messageEl.textContent = variant === 'logout' ? '' : message;
+        if (icon) icon.textContent = variant === 'logout' ? 'logout' : 'warning';
+        if (acceptLabelEl) acceptLabelEl.textContent = variant === 'logout' ? '' : acceptLabel;
+        else accept.textContent = acceptLabel;
+        accept.setAttribute('aria-label', variant === 'logout' ? 'Se déconnecter' : acceptLabel);
         dialog.hidden = false;
         const close = result => {
             dialog.hidden = true;
+            dialogCard?.classList.remove('is-logout');
+            dialog.classList.remove('is-logging-out');
+            accept.disabled = false;
+            cancel.disabled = false;
             cancel.removeEventListener('click', onCancel);
             accept.removeEventListener('click', onAccept);
+            dialog.removeEventListener('click', onBackdropClick);
+            document.removeEventListener('keydown', onKeyDown);
             resolve(result);
         };
         const onCancel = () => close(false);
-        const onAccept = () => close(true);
+        const onBackdropClick = event => {
+            if (variant === 'logout' && event.target === dialog && !dialog.classList.contains('is-logging-out')) {
+                close(false);
+            }
+        };
+        const onKeyDown = event => {
+            if (variant === 'logout' && event.key === 'Escape' && !dialog.classList.contains('is-logging-out')) {
+                close(false);
+            }
+        };
+        const onAccept = () => {
+            if (variant !== 'logout') {
+                close(true);
+                return;
+            }
+            dialog.classList.add('is-logging-out');
+            accept.disabled = true;
+            cancel.disabled = true;
+            window.setTimeout(() => close(true), 850);
+        };
         cancel.addEventListener('click', onCancel);
         accept.addEventListener('click', onAccept);
-        cancel.focus();
+        dialog.addEventListener('click', onBackdropClick);
+        document.addEventListener('keydown', onKeyDown);
+        (variant === 'logout' ? accept : cancel).focus();
     });
 }
 
@@ -281,7 +316,7 @@ async function submitManualAdd() {
 async function getUser(login, mdp) {
     const { data, error } = await Supabase
         .from('users')  
-        .select('name')
+        .select('name, login')
         .eq('login', login)
         .eq('mdp', mdp);
     if (error) {
@@ -294,14 +329,35 @@ async function getUser(login, mdp) {
         nomsess: "username",
         valsess: data[0].name
     });
+    setsess({
+        nomsess: "accountLogin",
+        valsess: data[0].login
+    });
     return true;
 }
 
+let selectListRequestId = 0;
+
+function awaitSupabaseQuery(query, timeoutMs = 12000) {
+    let timeoutId;
+    const timeout = new Promise(resolve => {
+        timeoutId = window.setTimeout(() => {
+            resolve({ data: null, error: new Error('La requête a expiré.') });
+        }, timeoutMs);
+    });
+    return Promise.race([query, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 async function selectList(statsArray = ["toview", "next", "watching", "finished", "waiting", "dropped", "restart", "again"], orderby = "nompref", asc = true) {
+    const requestId = ++selectListRequestId;
     if (!Array.isArray(statsArray)) {
         statsArray = [statsArray];
     }
     let tablename = 'list' + sessionStorage.getItem('username').toLowerCase();
+    const markerFilters = (Array.isArray(window.currentMarkerFilter)
+        ? window.currentMarkerFilter
+        : String(window.currentMarkerFilter || '').split(','))
+        .filter(filter => filter === 'favorite' || filter === 'flag');
     const grid = document.querySelector("#gridAnime");
     if (grid) {
         grid.innerHTML = '';
@@ -343,12 +399,14 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
             query = query.in("statut", statsArray);
         }
 
-        if (statsArray.length === 1 && statsArray[0] === 'favorite') {
+        if (!markerFilters.length && statsArray.length === 1 && statsArray[0] === 'favorite') {
             query = query.eq('favori', 1);
         }
-        if (statsArray.length === 1 && statsArray[0] === 'flag') {
+        if (!markerFilters.length && statsArray.length === 1 && statsArray[0] === 'flag') {
             query = query.eq('flag', 1);
         }
+        if (markerFilters.includes('favorite')) query = query.eq('favori', 1);
+        if (markerFilters.includes('flag')) query = query.eq('flag', 1);
 
         query = query.order(orderby, { ascending: asc });
 
@@ -356,21 +414,59 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
             query = query.order('nompref', { ascending: asc });
         }
 
-    let { data, error } = await query;
+    let data;
+    let error;
+    try {
+        ({ data, error } = await awaitSupabaseQuery(query));
+    } catch (requestError) {
+        error = requestError;
+    }
+    if (requestId !== selectListRequestId) return;
     if (error) {
         console.error(error);
-        showAppToast('Impossible de charger cette liste.', 'error');
+        if (grid) {
+            grid.innerHTML = '';
+            grid.setAttribute('aria-busy', 'false');
+            const retryNotice = document.createElement('div');
+            retryNotice.className = 'list-load-error';
+            retryNotice.setAttribute('role', 'alert');
+            const message = document.createElement('p');
+            message.textContent = 'Impossible de charger la liste. Vérifie ta connexion puis réessaie.';
+            const retryButton = document.createElement('button');
+            retryButton.type = 'button';
+            retryButton.className = 'list-retry-button';
+            retryButton.textContent = 'Réessayer';
+            retryButton.addEventListener('click', () => {
+                selectList(statsArray, orderby, asc);
+            });
+            retryNotice.append(message, retryButton);
+            grid.appendChild(retryNotice);
+        }
+        return;
     }
 
     let recentItems = [];
     if (grid && !error) {
-        const recentQuery = await Supabase
+        let recentQuery = Supabase
             .from(tablename)
-        .select(`id, idanime, urlimg, nompref, nomnative, nomromaji, statut, nbsaisons, nbepisodes, saisonencours, epencours, film, duree, favori, flag`)
-            .order('id', { ascending: false })
-            .limit(6);
-        if (!recentQuery.error) {
-            recentItems = recentQuery.data || [];
+            .select(`id, idanime, urlimg, nompref, nomnative, nomromaji, statut, nbsaisons, nbepisodes, saisonencours, epencours, film, duree, favori, flag`);
+        if (statsArray.length > 0 && !statsArray.includes('favorite') && !statsArray.includes('flag')) {
+            recentQuery = recentQuery.in('statut', statsArray);
+        }
+        if (markerFilters.includes('favorite')) recentQuery = recentQuery.eq('favori', 1);
+        if (markerFilters.includes('flag')) recentQuery = recentQuery.eq('flag', 1);
+        let recentResult;
+        try {
+            recentResult = await awaitSupabaseQuery(recentQuery.order('id', { ascending: false }).limit(6));
+        } catch (requestError) {
+            recentResult = { data: null, error: requestError };
+        }
+        if (requestId !== selectListRequestId) return;
+        if (!recentResult.error) {
+            recentItems = recentResult.data || [];
+        } else {
+            console.error('Impossible de charger les ajouts récents :', recentResult.error);
+            showAppToast('Les ajouts récents n’ont pas pu être chargés.', 'error');
         }
     }
 
@@ -457,6 +553,30 @@ async function selectList(statsArray = ["toview", "next", "watching", "finished"
             caption: data_.caption
         });
     });   
+    if (grid && !data?.length) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'list-empty-state';
+        emptyState.textContent = markerFilters.includes('favorite') && markerFilters.includes('flag') ? 'Aucun anime favori et marqué dans cette catégorie.'
+            : markerFilters.includes('favorite') ? 'Aucun anime en favori dans cette catégorie.'
+            : markerFilters.includes('flag') ? 'Aucun anime marqué dans cette catégorie.'
+            : statsArray.length === 1 && statsArray[0] === 'favorite' ? 'Aucun anime en favori.'
+            : statsArray.length === 1 && statsArray[0] === 'flag' ? 'Aucun anime marqué.'
+            : 'Aucun anime dans cette catégorie.';
+        grid.appendChild(emptyState);
+    }
+}
+
+async function logout() {
+    const confirmed = await showConfirmDialog(
+        '',
+        'Se déconnecter ?',
+        'Se déconnecter',
+        'logout'
+    );
+    if (!confirmed) return;
+    localStorage.removeItem('username');
+    sessionStorage.clear();
+    window.location.href = 'login.html';
 }
 
 function addAnimeCard({ id, aniListId, img, title, nativeTitle, romajiTitle, saisons, episodes, status, saisonencours, epencours, film, duree, favori, flag, caption }, targetGrid = null) {
@@ -1629,7 +1749,11 @@ async function login (login, mdp) {
 function setsess({ nomsess, valsess}){
     sessionStorage.setItem(nomsess, valsess);
     if (nomsess === "username") {
-        localStorage.setItem(nomsess, valsess);
+        if (localStorage.getItem('kuroniRememberLogin') === 'true') {
+            localStorage.setItem(nomsess, valsess);
+        } else {
+            localStorage.removeItem(nomsess);
+        }
     }
 }
 
@@ -2206,6 +2330,21 @@ function clearSearchResults(message = 'Commencez une recherche pour afficher les
 let selectedSearchAnime = null;
 let searchRequestId = 0;
 
+function showSearchError(query) {
+    const empty = document.getElementById('searchEmpty');
+    if (!empty) return;
+    empty.replaceChildren();
+    const message = document.createElement('span');
+    message.textContent = 'La recherche est momentanément indisponible.';
+    const retryButton = document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'search-retry-button';
+    retryButton.textContent = 'Réessayer';
+    retryButton.addEventListener('click', () => searchAnime(query));
+    empty.append(message, retryButton);
+    empty.style.display = 'grid';
+}
+
 function renderSearchResults(items) {
     const results = document.getElementById('searchResults');
     const empty = document.getElementById('searchEmpty');
@@ -2341,15 +2480,20 @@ async function searchAnime(query) {
                 episodes
                 duration
                 description
+                isAdult
+                genres
             }
         }
     }`;
 
     const variables = { search: query };
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 
     try {
         const response = await fetch('https://graphql.anilist.co', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -2362,7 +2506,10 @@ async function searchAnime(query) {
             throw new Error(data?.errors?.map(error => error.message).join('; ') || `HTTP ${response.status}`);
         }
         const media = data?.data?.Page?.media || [];
-        const items = media.map(anime => {
+        const hideHentai = localStorage.getItem('kuroniHideHentaiSearch') !== 'false';
+        const items = media.filter(anime => !hideHentai ||
+            (!anime.isAdult && !anime.genres?.some(genre => genre.toLowerCase() === 'hentai')))
+            .map(anime => {
             const isMovie = anime.format === 'MOVIE';
             const type = isMovie ? 'Film' : 'Série';
             return {
@@ -2386,8 +2533,75 @@ async function searchAnime(query) {
     } catch (err) {
         if (requestId !== searchRequestId) return;
         console.error('Erreur recherche AniList :', err);
-        showAppToast('La recherche est momentanément indisponible.', 'error');
-        clearSearchResults('Erreur lors de la recherche. Réessayez.');
+        showSearchError(query);
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+
+}
+
+async function submitPasswordChange(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const status = document.getElementById('changePasswordStatus');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmNewPassword').value;
+    const setStatus = (message, isError = false) => {
+        status.textContent = message;
+        status.classList.toggle('error', isError);
+    };
+
+    if (newPassword !== confirmPassword) {
+        setStatus('Les nouveaux mots de passe ne correspondent pas.', true);
+        return;
+    }
+    if (currentPassword === newPassword) {
+        setStatus('Le nouveau mot de passe doit être différent de l’ancien.', true);
+        return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.querySelector('span:last-child').textContent = 'Modification...';
+    setStatus('');
+    try {
+        let accountLogin = sessionStorage.getItem('accountLogin');
+        if (!accountLogin) {
+            const { data, error } = await Supabase
+                .from('users')
+                .select('login')
+                .eq('name', sessionStorage.getItem('username'))
+                .limit(1);
+            if (error) throw error;
+            accountLogin = data?.[0]?.login;
+        }
+        if (!accountLogin) {
+            throw new Error('Impossible de retrouver le compte connecté.');
+        }
+
+        const oldHash = CryptoJS.SHA1(currentPassword).toString();
+        const newHash = CryptoJS.SHA1(newPassword).toString();
+        const { data, error } = await Supabase
+            .from('users')
+            .update({ mdp: newHash })
+            .eq('login', accountLogin)
+            .eq('mdp', oldHash)
+            .select('login');
+        if (error) throw error;
+        if (!data?.length) {
+            setStatus('Mot de passe actuel incorrect.', true);
+            return;
+        }
+
+        form.reset();
+        setStatus('Mot de passe modifié avec succès.');
+    } catch (error) {
+        console.error('Impossible de modifier le mot de passe :', error);
+        setStatus('La modification du mot de passe a échoué. Réessaie plus tard.', true);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.querySelector('span:last-child').textContent = 'Modifier le mot de passe';
     }
 }
 
@@ -3673,14 +3887,22 @@ async function refreshKurocalActiveView() {
 
 window.refreshKurocalActiveView = refreshKurocalActiveView;
 
-function openKurocal() {
+function openKurocal(initialPanel = 'today') {
     const view = document.getElementById('kurocalView');
     if (!view) return;
+    document.querySelector('.anime-player-stage video')?.pause();
+    const markerFilterPanel = document.getElementById('animeMarkerFilterPanel');
+    const markerFilterToggle = document.getElementById('animeMarkerFilterToggle');
+    if (markerFilterPanel) markerFilterPanel.hidden = true;
+    if (markerFilterToggle) {
+        markerFilterToggle.setAttribute('aria-expanded', 'false');
+        markerFilterToggle.setAttribute('aria-label', 'Ouvrir les filtres');
+    }
     const activePanel = document.querySelector('.view-panel.active');
     kurocalReturnView = activePanel?.id || 'gridAnime';
     view.hidden = false;
     document.body.classList.add('kurocal-active');
-    showKurocalPanel('today');
+    showKurocalPanel(initialPanel);
 }
 
 function closeKurocal() {
@@ -3710,6 +3932,96 @@ function swipeKurocalDay(amount) {
 }
 
 window.swipeKurocalDay = swipeKurocalDay;
+
+function initializeMainSettings() {
+    const startupViewInputs = document.querySelectorAll('input[name="startupViewSetting"]');
+    const searchHideHentai = document.getElementById('searchHideHentai');
+    const rememberLogin = document.getElementById('rememberLoginSetting');
+
+    if (startupViewInputs.length) {
+        const savedStartupView = localStorage.getItem('kuroniStartupView');
+        const selectedStartupView = savedStartupView === 'kurocal' ? 'kurocal' : 'gridAnime';
+        startupViewInputs.forEach(input => {
+            input.checked = input.value === selectedStartupView;
+            input.addEventListener('change', () => {
+                if (!input.checked) return;
+                try {
+                    localStorage.setItem('kuroniStartupView', input.value);
+                } catch (error) {
+                    console.error('Impossible d’enregistrer la page de démarrage :', error);
+                    startupViewInputs.forEach(option => {
+                        option.checked = option.value === selectedStartupView;
+                    });
+                    showAppToast('Impossible d’enregistrer ce réglage sur cet appareil.', 'error');
+                }
+            });
+        });
+    }
+
+    if (searchHideHentai) {
+        searchHideHentai.checked = localStorage.getItem('kuroniHideHentaiSearch') !== 'false';
+        searchHideHentai.addEventListener('change', () => {
+            const previousValue = !searchHideHentai.checked;
+            try {
+                localStorage.setItem('kuroniHideHentaiSearch', String(searchHideHentai.checked));
+                const query = document.getElementById('searchQuery')?.value.trim();
+                if (query) searchAnime(query);
+            } catch (error) {
+                console.error('Impossible d’enregistrer le filtre hentai de recherche :', error);
+                searchHideHentai.checked = previousValue;
+                showAppToast('Impossible d’enregistrer ce réglage sur cet appareil.', 'error');
+            }
+        });
+    }
+
+    if (rememberLogin) {
+        rememberLogin.checked = localStorage.getItem('kuroniRememberLogin') === 'true';
+        rememberLogin.addEventListener('change', () => {
+            const previousValue = !rememberLogin.checked;
+            try {
+                localStorage.setItem('kuroniRememberLogin', String(rememberLogin.checked));
+                if (rememberLogin.checked) {
+                    localStorage.setItem('username', sessionStorage.getItem('username') || '');
+                } else {
+                    localStorage.removeItem('username');
+                }
+            } catch (error) {
+                console.error('Impossible d’enregistrer le réglage de connexion :', error);
+                rememberLogin.checked = previousValue;
+                showAppToast('Impossible d’enregistrer ce réglage sur cet appareil.', 'error');
+            }
+        });
+    }
+}
+
+function openPasswordModal() {
+    const modal = document.getElementById('passwordModal');
+    if (!modal) return;
+    const form = document.getElementById('changePasswordForm');
+    form?.reset();
+    const status = document.getElementById('changePasswordStatus');
+    if (status) {
+        status.textContent = '';
+        status.classList.remove('error');
+    }
+    modal.hidden = false;
+    document.body.classList.add('password-modal-open');
+    document.getElementById('currentPassword')?.focus();
+}
+
+function closePasswordModal() {
+    const modal = document.getElementById('passwordModal');
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    document.body.classList.remove('password-modal-open');
+    document.getElementById('changePasswordForm')?.reset();
+    const status = document.getElementById('changePasswordStatus');
+    if (status) {
+        status.textContent = '';
+        status.classList.remove('error');
+    }
+    document.querySelector('.settings-account-button')?.focus();
+}
 
 function initializeKurocal() {
     const hideHentai = document.getElementById('kurocalHideHentai');
@@ -3797,5 +4109,18 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     toggleManualTypeFields();
+    initializeMainSettings();
+    document.getElementById('changePasswordForm')?.addEventListener('submit', submitPasswordChange);
     initializeKurocal();
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closePasswordModal();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            document.querySelector('.anime-player-stage video')?.pause();
+        }
+    });
+    if (localStorage.getItem('kuroniStartupView') === 'kurocal') {
+        openKurocal('calendar');
+    }
 });

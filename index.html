@@ -9,7 +9,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="scripts/script.js"></script>
     <script>
-        const rememberedUsername = localStorage.getItem("username");
+        const rememberLogin = localStorage.getItem("kuroniRememberLogin") === "true";
+        if (!rememberLogin) localStorage.removeItem("username");
+        const rememberedUsername = rememberLogin ? localStorage.getItem("username") : null;
         if ((!sessionStorage.getItem("username") || sessionStorage.getItem("username") === "undefined") &&
             rememberedUsername && rememberedUsername !== "undefined") {
             sessionStorage.setItem("username", rememberedUsername);
@@ -77,10 +79,13 @@
                     <div class="settings-avatar">
                         <span class="material-symbols-rounded">person</span>
                     </div>
-                    <div>
+                    <div class="settings-profile-info">
                         <h2 id="settingsUsername">Utilisateur</h2>
                         <p>Gère ton profil et tes préférences</p>
                     </div>
+                    <button type="button" class="settings-account-button" aria-label="Ouvrir les réglages du compte" title="Réglages du compte" onclick="openPasswordModal();">
+                        <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+                    </button>
                 </div>
 
                 <div class="settings-summary" aria-label="Résumé de la liste">
@@ -101,10 +106,54 @@
                     <div><strong id="settingsDroppedCount">-</strong><span>Abandonnés</span></div>
                 </div>
 
-                <button type="button" class="settings-btn" onclick="toggleCompactMode();">
-                    <span class="material-symbols-rounded">grid_view</span>
-                    <span id="compactModeLabel">Mode compact</span>
-                </button>
+                <div class="settings-block">
+                    <h3>Préférences</h3>
+                    <div class="startup-view-setting">
+                        <div class="startup-view-heading">
+                            <div>
+                                <strong>Page de démarrage</strong>
+                                <small>Où veux-tu reprendre à chaque ouverture ?</small>
+                            </div>
+                            <span class="material-symbols-rounded" aria-hidden="true">home</span>
+                        </div>
+                        <div class="startup-view-options" role="radiogroup" aria-label="Page de démarrage">
+                            <label class="startup-view-option">
+                                <input type="radio" name="startupViewSetting" value="gridAnime">
+                                <span class="startup-view-content">
+                                    <span class="material-symbols-rounded" aria-hidden="true">auto_awesome_motion</span>
+                                    <span><strong>Ma liste</strong><small>Retrouver mes animes</small></span>
+                                    <span class="startup-view-check material-symbols-rounded" aria-hidden="true">check_circle</span>
+                                </span>
+                            </label>
+                            <label class="startup-view-option">
+                                <input type="radio" name="startupViewSetting" value="kurocal">
+                                <span class="startup-view-content">
+                                    <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+                                    <span><strong>Kurocal</strong><small>Voir le calendrier</small></span>
+                                    <span class="startup-view-check material-symbols-rounded" aria-hidden="true">check_circle</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    <label class="kurocal-setting-toggle settings-toggle" for="searchHideHentai">
+                        <span>
+                            <strong>Masquer les hentai dans la recherche</strong>
+                        </span>
+                        <input type="checkbox" id="searchHideHentai">
+                        <span class="kurocal-setting-switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="kurocal-setting-toggle settings-toggle" for="rememberLoginSetting">
+                        <span>
+                            <strong>Rester connecté</strong>
+                        </span>
+                        <input type="checkbox" id="rememberLoginSetting">
+                        <span class="kurocal-setting-switch" aria-hidden="true"></span>
+                    </label>
+                    <button type="button" class="settings-btn" onclick="toggleCompactMode();">
+                        <span class="material-symbols-rounded compact-mode-icon" id="compactModeIcon" aria-hidden="true">grid_view</span>
+                        <span id="compactModeLabel">Mode compact</span>
+                    </button>
+                </div>
 
                 <div class="settings-block">
                     <h3>Kuroliste</h3>
@@ -123,36 +172,14 @@
                     <input type="file" id="kurolisteJsonImport" accept=".json,application/json" hidden>
                 </div>
 
-                <!-- <div class="settings-block">
-                    <h3>Profil</h3>
-                    <button type="button" class="settings-btn">
-                        <span class="material-symbols-rounded">edit</span>
-                        <span>Modifier mon profil</span>
-                    </button>
-                    <button type="button" class="settings-btn">
-                        <span class="material-symbols-rounded">notifications</span>
-                        <span>Notifications</span>
-                    </button>
-                </div> -->
-
-                <!-- <div class="settings-block">
-                    <h3>Liste</h3>
-                    <button type="button" class="settings-btn">
-                        <span class="material-symbols-rounded">sort</span>
-                        <span>Tri par défaut</span>
-                    </button>
-                    <button type="button" class="settings-btn">
-                        <span class="material-symbols-rounded">visibility</span>
-                        <span>Afficher les favoris</span>
-                    </button>
-                </div> -->
-
                 <div class="settings-block">
-                    <button type="button" class="settings-btn danger" onclick="localStorage.removeItem('username'); sessionStorage.clear(); window.location.href='login.html';">
+                    <h3>Session</h3>
+                    <button type="button" class="settings-btn danger" onclick="logout();">
                         <span class="material-symbols-rounded">logout</span>
                         <span>Se déconnecter</span>
                     </button>
                 </div>
+                <p class="settings-version">Kuroni, version 2.2.0</p>
             </div>
         </section>
 
@@ -224,6 +251,20 @@
         </section>
 
     </main>
+
+    <div class="anime-marker-filter" id="animeMarkerFilter">
+        <div class="anime-marker-filter-panel" id="animeMarkerFilterPanel" aria-label="Filtres de la liste" hidden>
+            <button type="button" data-marker-filter="favorite" aria-label="Filtrer les favoris" aria-pressed="false" title="Favoris">
+                <span class="material-symbols-rounded" aria-hidden="true">star</span>
+            </button>
+            <button type="button" data-marker-filter="flag" aria-label="Filtrer les animes marqués" aria-pressed="false" title="Marqués">
+                <span class="material-symbols-rounded" aria-hidden="true">flag</span>
+            </button>
+        </div>
+        <button type="button" class="anime-marker-filter-toggle" id="animeMarkerFilterToggle" aria-label="Ouvrir les filtres" aria-expanded="false" aria-controls="animeMarkerFilterPanel" title="Filtres">
+            <span class="material-symbols-rounded" aria-hidden="true">filter_list</span>
+        </button>
+    </div>
 
     <button type="button" class="calendar-entry-button" aria-label="Ouvrir Kurocal" title="Kurocal" onclick="openKurocal();">
         <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
@@ -626,9 +667,46 @@
             <p id="confirmDialogMessage"></p>
             <div class="confirm-dialog-actions">
                 <button type="button" class="cancel" id="confirmCancel">Annuler</button>
-                <button type="button" class="delete" id="confirmAccept">Confirmer</button>
+                <button type="button" class="delete" id="confirmAccept">
+                    <span id="confirmAcceptLabel">Confirmer</span>
+                    <span class="material-symbols-rounded confirm-accept-icon" aria-hidden="true">logout</span>
+                </button>
             </div>
         </div>
+    </div>
+
+    <div class="password-modal-backdrop" id="passwordModal" hidden role="presentation" onclick="if(event.target === this) closePasswordModal();">
+        <section class="password-modal" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
+            <button type="button" class="password-modal-close" aria-label="Fermer" onclick="closePasswordModal();">
+                <span class="material-symbols-rounded" aria-hidden="true">close</span>
+            </button>
+            <div class="password-modal-heading">
+                <span class="material-symbols-rounded" aria-hidden="true">manage_accounts</span>
+                <div>
+                    <h2 id="passwordModalTitle">Réglages du compte</h2>
+                    <p>Modifier ton mot de passe</p>
+                </div>
+            </div>
+            <form id="changePasswordForm" class="settings-password-form">
+                <label>
+                    <span>Mot de passe actuel</span>
+                    <input type="password" id="currentPassword" autocomplete="current-password" required>
+                </label>
+                <label>
+                    <span>Nouveau mot de passe</span>
+                    <input type="password" id="newPassword" autocomplete="new-password" required>
+                </label>
+                <label>
+                    <span>Confirmer le nouveau mot de passe</span>
+                    <input type="password" id="confirmNewPassword" autocomplete="new-password" required>
+                </label>
+                <p id="changePasswordStatus" class="settings-form-status" role="status" aria-live="polite"></p>
+                <button type="submit" class="settings-btn">
+                    <span class="material-symbols-rounded">lock_reset</span>
+                    <span>Modifier le mot de passe</span>
+                </button>
+            </form>
+        </section>
     </div>
 
     <!-- Références Supabase -->
@@ -772,16 +850,27 @@
             const enabled = localStorage.getItem('kuroniCompactMode') === 'true';
             document.body.classList.toggle('compact-mode', enabled);
             const label = document.getElementById('compactModeLabel');
+            const icon = document.getElementById('compactModeIcon');
             if (label) label.textContent = enabled ? 'Mode confortable' : 'Mode compact';
+            if (icon) icon.textContent = enabled ? 'view_agenda' : 'grid_view';
         }
 
         function toggleCompactMode() {
             const enabled = localStorage.getItem('kuroniCompactMode') === 'true';
             localStorage.setItem('kuroniCompactMode', String(!enabled));
             applyCompactMode();
+            const button = document.querySelector('#compactModeIcon')?.closest('.settings-btn');
+            if (button) {
+                button.classList.remove('is-changing');
+                void button.offsetWidth;
+                button.classList.add('is-changing');
+            }
         }
 
         function showView(viewName) {
+            if (viewName !== 'animePlayerView') {
+                document.querySelector('.anime-player-stage video')?.pause();
+            }
             const gridPanel = document.getElementById('gridAnime');
             const settingsPanel = document.getElementById('settingsView');
             const searchPanel = document.getElementById('searchView');
@@ -803,6 +892,19 @@
 
             if (searchPanel) {
                 searchPanel.style.display = viewName === 'searchView' ? 'block' : 'none';
+            }
+            const calendarButton = document.querySelector('.calendar-entry-button');
+            if (calendarButton) calendarButton.hidden = viewName === 'settingsView';
+            const markerFilter = document.getElementById('animeMarkerFilter');
+            if (markerFilter) markerFilter.hidden = viewName !== 'gridAnime';
+            if (viewName !== 'gridAnime') {
+                const markerPanel = document.getElementById('animeMarkerFilterPanel');
+                const markerToggle = document.getElementById('animeMarkerFilterToggle');
+                if (markerPanel) markerPanel.hidden = true;
+                if (markerToggle) {
+                    markerToggle.setAttribute('aria-expanded', 'false');
+                    markerToggle.setAttribute('aria-label', 'Ouvrir les filtres');
+                }
             }
 
             document.querySelectorAll('.bottom-nav button').forEach(btn => btn.classList.remove('active'));
@@ -854,6 +956,35 @@
             setNavFilter(button, button.dataset.filter);
         }
 
+        document.getElementById('animeMarkerFilterToggle')?.addEventListener('click', () => {
+            const panel = document.getElementById('animeMarkerFilterPanel');
+            const toggle = document.getElementById('animeMarkerFilterToggle');
+            if (!panel || !toggle) return;
+            const isOpen = panel.hidden;
+            panel.hidden = !isOpen;
+            toggle.setAttribute('aria-expanded', String(isOpen));
+            toggle.setAttribute('aria-label', isOpen ? 'Fermer les filtres' : 'Ouvrir les filtres');
+        });
+
+        document.querySelectorAll('[data-marker-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                const filter = button.dataset.markerFilter;
+                const currentFilters = new Set(Array.isArray(window.currentMarkerFilter)
+                    ? window.currentMarkerFilter
+                    : String(window.currentMarkerFilter || '').split(',').filter(Boolean));
+                if (currentFilters.has(filter)) currentFilters.delete(filter);
+                else currentFilters.add(filter);
+                const nextFilters = [...currentFilters];
+                sessionStorage.setItem('currentMarkerFilter', nextFilters.join(','));
+                window.currentMarkerFilter = nextFilters;
+                document.querySelectorAll('[data-marker-filter]').forEach(filterButton => {
+                    filterButton.setAttribute('aria-pressed', String(currentFilters.has(filterButton.dataset.markerFilter)));
+                });
+                document.getElementById('animeMarkerFilterToggle')?.classList.toggle('has-active-filter', nextFilters.length > 0);
+                selectList(parseFilter(currentFilterValue));
+            });
+        });
+
         const navButtons = document.querySelectorAll('.bottom-nav button[data-filter]');
         navButtons.forEach(button => {
             button.addEventListener('click', function() {
@@ -877,65 +1008,24 @@
 
         const initialFilter = sessionStorage.getItem('currentListFilter') || 'toview,next,waiting,dropped,restart,again';
         currentFilterValue = initialFilter;
+        window.currentMarkerFilter = (sessionStorage.getItem('currentMarkerFilter') || '')
+            .split(',')
+            .filter(filter => filter === 'favorite' || filter === 'flag');
+        document.querySelectorAll('[data-marker-filter]').forEach(button => {
+            button.setAttribute('aria-pressed', String(window.currentMarkerFilter.includes(button.dataset.markerFilter)));
+        });
+        document.getElementById('animeMarkerFilterToggle')?.classList.toggle('has-active-filter', window.currentMarkerFilter.length > 0);
         applyCompactMode();
         selectList(parseFilter(initialFilter));
         printCounts();
 
-        // Swipe navigation for mobile
+        // Pull-to-refresh only; horizontal gestures remain available for zoom and browser navigation.
         const swipeArea = document.querySelector('main');
         let touchStartX = 0;
         let touchStartY = 0;
-        let touchStartTime = 0;
-
-        function getNavButtons() {
-            return Array.from(document.querySelectorAll('.bottom-nav button[data-filter], .bottom-nav button[data-view]'));
-        }
-
-        function getActiveFilterIndex() {
-            const buttons = getNavButtons();
-            return buttons.findIndex(btn => btn.classList.contains('active'));
-        }
-
-        function swipeToIndex(index) {
-            const buttons = getNavButtons();
-            if (!buttons.length) return;
-            const normalizedIndex = ((index % buttons.length) + buttons.length) % buttons.length;
-            const button = buttons[normalizedIndex];
-            if (button) button.click();
-        }
-
-        function handleSwipe(dx, dy, duration) {
-            const absDx = Math.abs(dx);
-            const absDy = Math.abs(dy);
-
-            if (absDx < 40 || absDx < absDy) return;
-
-            const settingsPanel = document.getElementById('settingsView');
-            const isSettingsActive = settingsPanel && settingsPanel.classList.contains('active');
-
-            if (isSettingsActive && dx < 0) {
-                const firstListButton = document.querySelector('.bottom-nav button[data-filter="toview,next,waiting,dropped,restart,again"]');
-                if (firstListButton) {
-                    showView('gridAnime');
-                    setNavFilter(firstListButton, firstListButton.dataset.filter);
-                }
-                return;
-            }
-
-            const currentIndex = getActiveFilterIndex();
-            if (currentIndex === -1) return;
-
-            if (dx < 0) {
-                swipeToIndex(currentIndex + 1);
-            } else {
-                swipeToIndex(currentIndex - 1);
-            }
-        }
-        window.handleSwipe = handleSwipe;
 
         const pullRefreshHint = document.getElementById('pullRefreshHint');
         const kurocalPullRefreshArea = document.getElementById('kurocalView');
-        const grid = document.getElementById('gridAnime');
         let pullRefreshTracking = false;
         let pullRefreshReady = false;
         let kurocalPullRefreshTracking = false;
@@ -948,17 +1038,11 @@
             return document.scrollingElement?.scrollTop || window.scrollY || 0;
         }
 
-        function resetSwipeClass() {
-            if (!grid) return;
-            grid.classList.remove('swipe-left', 'swipe-right');
-        }
-
         if (swipeArea) {
             const handleTouchStart = event => {
                 if (event.touches.length !== 1) return;
                 touchStartX = event.touches[0].clientX;
                 touchStartY = event.touches[0].clientY;
-                touchStartTime = Date.now();
                 pullRefreshTracking = getScrollTop() <= 0;
                 pullRefreshReady = false;
                 if (pullRefreshHint) {
@@ -967,11 +1051,16 @@
             };
 
             const handleTouchMove = event => {
-                if (event.touches.length !== 1) return;
+                if (event.touches.length !== 1) {
+                    pullRefreshTracking = false;
+                    pullRefreshReady = false;
+                    if (pullRefreshHint) pullRefreshHint.classList.remove('active');
+                    return;
+                }
                 const touch = event.touches[0];
                 const dx = touch.clientX - touchStartX;
                 const dy = touch.clientY - touchStartY;
-                const isPullDown = pullRefreshTracking && dy > 0 && Math.abs(dy) > Math.abs(dx);
+                const isPullDown = pullRefreshTracking && dy > 0 && dy > Math.abs(dx);
 
                 if (isPullDown) {
                     event.preventDefault();
@@ -986,22 +1075,13 @@
                         pullRefreshHint.classList.remove('active');
                     }
                 }
-
-                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-                    event.preventDefault();
-                }
             };
 
             const handleTouchEnd = event => {
-                const touch = event.changedTouches[0];
-                const dx = touch.clientX - touchStartX;
-                const dy = touch.clientY - touchStartY;
-                const duration = Date.now() - touchStartTime;
-                if (grid) {
-                    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) >= 40) {
-                        grid.classList.add(dx < 0 ? 'swipe-left' : 'swipe-right');
-                        window.setTimeout(resetSwipeClass, 220);
-                    }
+                if (event.touches.length) {
+                    pullRefreshTracking = false;
+                    pullRefreshReady = false;
+                    return;
                 }
                 if (pullRefreshReady) {
                     if (listRefreshReloadTimeout === null) {
@@ -1012,10 +1092,8 @@
                             window.location.reload();
                         }, 650);
                     }
-                } else {
-                    handleSwipe(dx, dy, duration);
-                    if (pullRefreshHint) pullRefreshHint.classList.remove('active');
                 }
+                if (pullRefreshHint) pullRefreshHint.classList.remove('active');
                 pullRefreshTracking = false;
                 pullRefreshReady = false;
             };

@@ -112,11 +112,23 @@ main{
     gap: 18px;
 }
 
+.settings-version {
+    margin: 0;
+    color: #888;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
 .settings-profile {
     display: flex;
     align-items: center;
     gap: 14px;
     padding-bottom: 6px;
+}
+
+.settings-profile-info {
+    flex: 1;
+    min-width: 0;
 }
 
 .settings-avatar {
@@ -140,6 +152,30 @@ main{
     margin: 0;
     color: #a7a7a7;
     font-size: 1rem;
+}
+
+.settings-account-button {
+    display: grid;
+    flex: 0 0 46px;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 15px;
+    background: rgba(255,255,255,.07);
+    color: #ddd;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease, transform .2s ease;
+}
+
+.settings-account-button:hover {
+    transform: rotate(12deg);
+    background: rgba(208,191,14,.16);
+    color: #f2dc4c;
+}
+
+.settings-account-button .material-symbols-rounded {
+    font-size: 24px;
 }
 
 .settings-summary {
@@ -219,6 +255,20 @@ main{
     background: rgba(255,255,255,0.14);
 }
 
+.settings-btn.is-changing .compact-mode-icon {
+    animation: compact-mode-icon-change .38s cubic-bezier(.2,.8,.2,1);
+}
+
+.compact-mode-icon {
+    transform-origin: center;
+}
+
+@keyframes compact-mode-icon-change {
+    0% { opacity: 1; transform: rotate(0) scale(1); }
+    45% { opacity: .45; transform: rotate(90deg) scale(.65); }
+    100% { opacity: 1; transform: rotate(180deg) scale(1); }
+}
+
 .settings-btn.danger {
     background: rgba(184,51,51,0.16);
     color: #ff8a8a;
@@ -226,6 +276,388 @@ main{
 
 .settings-btn.danger:hover {
     background: rgba(184,51,51,0.24);
+}
+
+.startup-view-setting {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+}
+
+.startup-view-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.startup-view-heading strong,
+.startup-view-heading small {
+    display: block;
+}
+
+.startup-view-heading strong {
+    color: #fff;
+    font-size: .98rem;
+}
+
+.startup-view-heading small {
+    margin-top: 4px;
+    color: #aaa;
+    font-size: .84rem;
+}
+
+.startup-view-heading > .material-symbols-rounded {
+    color: #c8b84f;
+    font-size: 23px;
+}
+
+.startup-view-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.startup-view-option {
+    min-width: 0;
+    cursor: pointer;
+}
+
+.startup-view-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.startup-view-content {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 9px;
+    min-height: 68px;
+    padding: 11px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    background: rgba(0,0,0,.14);
+    color: #aaa;
+    transition: border-color .22s ease, background .22s ease, transform .22s ease, color .22s ease;
+}
+
+.startup-view-content > .material-symbols-rounded:first-child {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    background: rgba(255,255,255,.07);
+    font-size: 20px;
+    transition: background .22s ease, color .22s ease;
+}
+
+.startup-view-content strong,
+.startup-view-content small {
+    display: block;
+}
+
+.startup-view-content strong {
+    color: #eee;
+    font-size: .9rem;
+}
+
+.startup-view-content small {
+    margin-top: 3px;
+    color: #999;
+    font-size: .76rem;
+    line-height: 1.25;
+}
+
+.startup-view-check {
+    color: transparent;
+    font-size: 19px;
+    transform: scale(.75);
+    transition: color .2s ease, transform .2s ease;
+}
+
+.startup-view-option input:checked + .startup-view-content {
+    transform: translateY(-1px);
+    border-color: rgba(208,191,14,.58);
+    background: linear-gradient(135deg, rgba(208,191,14,.15), rgba(255,255,255,.045));
+}
+
+.startup-view-option input:checked + .startup-view-content > .material-symbols-rounded:first-child {
+    background: rgba(208,191,14,.2);
+    color: #f2dc4c;
+}
+
+.startup-view-option input:checked + .startup-view-content .startup-view-check {
+    color: #f2dc4c;
+    transform: scale(1);
+}
+
+.startup-view-option input:focus-visible + .startup-view-content {
+    outline: 3px solid rgba(208,191,14,.4);
+    outline-offset: 3px;
+}
+
+.settings-toggle {
+    min-height: 68px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+    background: rgba(255,255,255,.045);
+    transition: background .2s ease, border-color .2s ease;
+}
+
+.settings-toggle:hover {
+    border-color: rgba(255,255,255,.14);
+    background: rgba(255,255,255,.07);
+}
+
+.settings-toggle > span:first-child {
+    flex: 1;
+}
+
+.settings-toggle strong {
+    color: #eee;
+    font-size: .94rem;
+}
+
+.settings-password-form input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    outline: none;
+    background: rgba(255,255,255,.06);
+    color: #fff;
+    font: inherit;
+    transition: border-color .2s ease, background .2s ease;
+}
+
+.settings-password-form input:focus {
+    border-color: rgba(208,191,14,.6);
+    background: rgba(255,255,255,.085);
+}
+
+.settings-password-form {
+    display: grid;
+    gap: 12px;
+}
+
+.settings-password-form label {
+    display: grid;
+    gap: 6px;
+    color: #c8c8c8;
+    font-size: .92rem;
+}
+
+.settings-password-form input {
+    width: 100%;
+}
+
+.settings-form-status {
+    min-height: 1.4em;
+    margin: 0;
+    color: #a9d8a9;
+    font-size: .9rem;
+}
+
+.settings-form-status.error {
+    color: #ff8a8a;
+}
+
+.settings-password-form button:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.password-modal-backdrop {
+    position: fixed;
+    z-index: 120;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0,0,0,.72);
+    backdrop-filter: blur(10px);
+    animation: password-modal-fade-in .2s ease both;
+}
+
+.password-modal-backdrop[hidden] {
+    display: none;
+}
+
+.password-modal {
+    position: relative;
+    width: min(460px, 100%);
+    box-sizing: border-box;
+    max-height: min(90dvh, 720px);
+    padding: clamp(22px, 5vw, 30px);
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 24px;
+    background: linear-gradient(155deg, #232320, #151515 65%);
+    box-shadow: 0 28px 90px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.05);
+    animation: password-modal-enter .26s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.password-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 13px;
+    background: rgba(255,255,255,.06);
+    color: #bbb;
+    cursor: pointer;
+}
+
+.password-modal-close:hover {
+    background: rgba(255,255,255,.12);
+    color: #fff;
+}
+
+.password-modal-heading {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin: 0 42px 22px 0;
+}
+
+.password-modal-heading > .material-symbols-rounded {
+    display: grid;
+    flex: 0 0 48px;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+    background: rgba(208,191,14,.15);
+    color: #f2dc4c;
+    font-size: 25px;
+}
+
+.password-modal-heading h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 1.15rem;
+}
+
+.password-modal-heading p {
+    margin: 4px 0 0;
+    color: #aaa;
+    font-size: .9rem;
+}
+
+.password-modal .settings-password-form button {
+    justify-content: center;
+    background: linear-gradient(120deg, rgba(208,191,14,.24), rgba(208,191,14,.12));
+    color: #f6e878;
+    font-weight: 700;
+}
+
+.password-modal .settings-password-form button:hover {
+    background: linear-gradient(120deg, rgba(208,191,14,.34), rgba(208,191,14,.18));
+}
+
+.password-modal .settings-password-form,
+.password-modal .settings-password-form label {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.password-modal .settings-password-form {
+    padding-inline: 0;
+}
+
+body.password-modal-open {
+    overflow: hidden;
+}
+
+@keyframes password-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes password-modal-enter {
+    from { opacity: 0; transform: translateY(12px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 420px) {
+    .startup-view-setting {
+        padding: 13px;
+    }
+
+    .startup-view-options {
+        gap: 7px;
+    }
+
+    .startup-view-content {
+        grid-template-columns: 30px minmax(0, 1fr) 18px;
+        gap: 6px;
+        min-height: 64px;
+        padding: 9px 7px;
+    }
+
+    .startup-view-content > .material-symbols-rounded:first-child {
+        width: 30px;
+        height: 30px;
+        font-size: 18px;
+    }
+
+    .startup-view-content strong {
+        font-size: .83rem;
+    }
+
+    .startup-view-content small {
+        font-size: .68rem;
+    }
+
+    .settings-profile {
+        gap: 10px;
+    }
+
+    .settings-avatar {
+        flex: 0 0 54px;
+        width: 54px;
+        height: 54px;
+    }
+
+    .settings-account-button {
+        flex-basis: 42px;
+        width: 42px;
+        height: 42px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-account-button,
+    .startup-view-content,
+    .startup-view-content > .material-symbols-rounded,
+    .startup-view-check,
+    .password-modal-backdrop,
+    .password-modal {
+        animation: none;
+        transition: none;
+    }
+
+    .settings-btn.is-changing .compact-mode-icon {
+        animation: none;
+    }
 }
 
 #gridAnime{
@@ -385,6 +817,53 @@ main{
     color: #d9d9d9;
     text-align: center;
     font-size: 1.05rem;
+}
+
+.search-empty:has(.search-retry-button) {
+    justify-items: center;
+    gap: 12px;
+}
+
+.search-retry-button,
+.list-retry-button {
+    min-height: 42px;
+    padding: 9px 16px;
+    border: 1px solid rgba(208,191,14,.35);
+    border-radius: 12px;
+    background: rgba(208,191,14,.14);
+    color: #f2dc4c;
+    font: inherit;
+    font-size: .94rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s ease, transform .2s ease;
+}
+
+.search-retry-button:hover,
+.list-retry-button:hover {
+    transform: translateY(-1px);
+    background: rgba(208,191,14,.24);
+}
+
+.list-load-error,
+.list-empty-state {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 520px);
+    padding: 24px 18px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 18px;
+    background: rgba(255,255,255,.045);
+    color: #c7c7c7;
+    text-align: center;
+}
+
+.list-load-error p {
+    margin: 0 0 14px;
+}
+
+.list-empty-state {
+    margin: 12px auto;
 }
 
 .hidden {
@@ -1456,19 +1935,42 @@ input:checked + .slider::before {
     padding: 20px;
     background: rgba(0,0,0,.7);
     backdrop-filter: blur(8px);
+    isolation: isolate;
 }
 
 .confirm-dialog-backdrop[hidden] {
     display: none;
 }
 
+.confirm-dialog-backdrop.is-logging-out {
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.confirm-dialog-backdrop.is-logging-out::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background:
+        radial-gradient(circle at center, rgba(150,28,40,.92), rgba(40,13,20,.985) 58%, #080709 100%);
+    clip-path: circle(0 at 50% 50%);
+    content: '';
+    animation: logout-page-zoom 1s cubic-bezier(.55,0,.18,1) forwards;
+}
+
 .confirm-dialog {
+    position: relative;
+    z-index: 1;
     width: min(420px, 100%);
     padding: 24px;
     border: 1px solid rgba(255,255,255,.12);
     border-radius: 20px;
     background: #191919;
     box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+
+.confirm-dialog-backdrop:not([hidden]) .confirm-dialog {
+    animation: confirm-dialog-enter .24s cubic-bezier(.2,.8,.2,1) both;
 }
 
 .confirm-dialog-icon {
@@ -1518,7 +2020,111 @@ input:checked + .slider::before {
     color: #fff;
 }
 
+.confirm-dialog.is-logout {
+    width: min(360px, 100%);
+    padding: 30px 26px;
+    border-color: rgba(230,83,83,.28);
+    background:
+        radial-gradient(ellipse at 50% 0, rgba(194,48,48,.18), transparent 58%),
+        #191919;
+    text-align: center;
+}
+
+.confirm-dialog.is-logout .confirm-dialog-icon,
+.confirm-dialog.is-logout p {
+    display: none;
+}
+
+.confirm-dialog.is-logout h2 {
+    margin-top: 0;
+    margin-bottom: 0;
+    font-size: 1.45rem;
+}
+
+.confirm-dialog.is-logout .confirm-dialog-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-top: 22px;
+}
+
+.confirm-dialog.is-logout #confirmCancel {
+    display: none;
+}
+
+.confirm-dialog.is-logout #confirmAccept {
+    position: relative;
+    display: grid;
+    width: 106px;
+    height: 106px;
+    padding: 0;
+    place-content: center;
+    overflow: visible;
+    border: 1px solid rgba(255,160,160,.65);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #e34e4e, #a91f2a);
+    box-shadow: 0 10px 30px rgba(184,51,51,.34), inset 0 1px 0 rgba(255,255,255,.2);
+}
+
+.confirm-dialog.is-logout #confirmAccept:hover {
+    transform: scale(1.06);
+    background: linear-gradient(145deg, #f05b5b, #b82430);
+}
+
+.confirm-dialog.is-logout #confirmAccept:disabled {
+    cursor: wait;
+}
+
+.confirm-dialog.is-logout #confirmAcceptLabel {
+    display: none;
+}
+
+.confirm-dialog.is-logout .confirm-accept-icon {
+    font-size: 38px;
+}
+
+.confirm-dialog-backdrop.is-logging-out .confirm-dialog {
+    pointer-events: none;
+    animation: logout-dialog-zoom .42s ease-in forwards;
+}
+
+@keyframes confirm-dialog-enter {
+    from { opacity: 0; transform: translateY(12px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes logout-page-zoom {
+    to {
+        background:
+            radial-gradient(circle at center, #761923, #210b11 62%, #030304 100%);
+        clip-path: circle(220vmax at 50% 50%);
+        filter: brightness(.68);
+    }
+}
+
+@keyframes logout-dialog-zoom {
+    to { opacity: 0; transform: scale(1.24); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .confirm-dialog-backdrop:not([hidden]) .confirm-dialog,
+    .confirm-dialog-backdrop.is-logging-out::before,
+    .confirm-dialog-backdrop.is-logging-out .confirm-dialog {
+        animation: none;
+    }
+
+    .confirm-dialog-backdrop.is-logging-out::before {
+        background: #10090c;
+        clip-path: circle(220vmax at 50% 50%);
+        filter: brightness(.68);
+    }
+}
+
 @media (max-width: 520px) {
+    .confirm-dialog.is-logout {
+        padding: 26px 20px;
+    }
+
     .card-info-panel{
         border-radius: 18px;
         width: 100%;
@@ -1842,20 +2448,159 @@ body.compact-mode .anime-card {
     place-items: center;
     border: 1px solid rgba(255,255,255,.18);
     border-radius: 50%;
-    background: rgba(255,255,255,.1);
+    background: rgba(18,18,18,.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     color: #f2dc4c;
     box-shadow: 0 10px 26px rgba(0,0,0,.32);
     cursor: pointer;
     transition: transform .2s ease, background .2s ease;
 }
 
+.calendar-entry-button[hidden] {
+    display: none !important;
+}
+
 .calendar-entry-button:hover {
     transform: translateY(-2px) scale(1.04);
-    background: rgba(255,255,255,.16);
+    background: rgba(28,28,28,.96);
 }
 
 .calendar-entry-button .material-symbols-rounded {
     font-size: 36px;
+}
+
+.anime-marker-filter {
+    position: fixed;
+    top: 50%;
+    right: max(14px, env(safe-area-inset-right));
+    z-index: 24;
+    transform: translateY(-50%);
+}
+
+.anime-marker-filter[hidden],
+.anime-marker-filter-panel[hidden] {
+    display: none !important;
+}
+
+.anime-marker-filter-toggle,
+.anime-marker-filter-panel button {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 50%;
+    background: rgba(24,24,24,.94);
+    color: #eee;
+    box-shadow: 0 8px 24px rgba(0,0,0,.36);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    cursor: pointer;
+    transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.anime-marker-filter-toggle {
+    position: relative;
+}
+
+.anime-marker-filter-toggle.has-active-filter {
+    border-color: rgba(208,191,14,.58);
+    background: rgba(48,42,12,.96);
+    color: #f2dc4c;
+}
+
+.anime-marker-filter-toggle.has-active-filter::after {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    border: 2px solid #181818;
+    border-radius: 50%;
+    background: #f2dc4c;
+    content: '';
+}
+
+.anime-marker-filter-toggle:hover,
+.anime-marker-filter-panel button:hover {
+    transform: scale(1.06);
+    background: rgba(48,48,48,.98);
+}
+
+.anime-marker-filter-toggle .material-symbols-rounded,
+.anime-marker-filter-panel button .material-symbols-rounded {
+    font-size: 26px;
+}
+
+.anime-marker-filter-panel {
+    position: absolute;
+    top: 50%;
+    right: 62px;
+    display: flex;
+    gap: 8px;
+    padding: 7px;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 999px;
+    background: rgba(18,18,18,.96);
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transform: translateY(-50%);
+    animation: marker-filter-enter .18s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .anime-marker-filter-panel {
+        animation: none;
+    }
+}
+
+.anime-marker-filter-panel button {
+    width: 44px;
+    height: 44px;
+    border-color: transparent;
+    background: rgba(255,255,255,.07);
+    color: #c9c9c9;
+    box-shadow: none;
+}
+
+.anime-marker-filter-panel button[aria-pressed="true"] {
+    border-color: rgba(208,191,14,.55);
+    background: rgba(208,191,14,.2);
+    color: #f2dc4c;
+}
+
+.anime-marker-filter-panel button[data-marker-filter="favorite"] .material-symbols-rounded {
+    font-variation-settings: 'FILL' 0;
+}
+
+.anime-marker-filter-panel button[data-marker-filter="favorite"][aria-pressed="true"] .material-symbols-rounded {
+    font-variation-settings: 'FILL' 1;
+}
+
+body.kurocal-active > .anime-marker-filter {
+    display: none !important;
+}
+
+@keyframes marker-filter-enter {
+    from { opacity: 0; transform: translate(8px, -50%) scale(.96); }
+    to { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+
+@media (max-width: 720px) {
+    .anime-marker-filter {
+        right: max(10px, env(safe-area-inset-right));
+    }
+
+    .anime-marker-filter-toggle {
+        width: 48px;
+        height: 48px;
+    }
+
+    .anime-marker-filter-panel {
+        right: 56px;
+    }
 }
 
 .add-anime-fab {
