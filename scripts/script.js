@@ -44,10 +44,13 @@ function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel 
             return;
         }
         dialogCard?.classList.toggle('is-logout', variant === 'logout');
+        dialogCard?.classList.toggle('is-duplicate', variant === 'duplicate');
         dialog.classList.remove('is-logging-out');
         titleEl.textContent = title;
         messageEl.textContent = variant === 'logout' ? '' : message;
-        if (icon) icon.textContent = variant === 'logout' ? 'logout' : 'warning';
+        if (icon) {
+            icon.textContent = variant === 'logout' ? 'logout' : 'warning';
+        }
         if (acceptLabelEl) acceptLabelEl.textContent = variant === 'logout' ? '' : acceptLabel;
         else accept.textContent = acceptLabel;
         accept.setAttribute('aria-label', variant === 'logout' ? 'Se déconnecter' : acceptLabel);
@@ -55,6 +58,7 @@ function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel 
         const close = result => {
             dialog.hidden = true;
             dialogCard?.classList.remove('is-logout');
+            dialogCard?.classList.remove('is-duplicate');
             dialog.classList.remove('is-logging-out');
             accept.disabled = false;
             cancel.disabled = false;
@@ -66,12 +70,16 @@ function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel 
         };
         const onCancel = () => close(false);
         const onBackdropClick = event => {
-            if (variant === 'logout' && event.target === dialog && !dialog.classList.contains('is-logging-out')) {
+            if ((variant === 'logout' || variant === 'duplicate') &&
+                event.target === dialog &&
+                !dialog.classList.contains('is-logging-out')) {
                 close(false);
             }
         };
         const onKeyDown = event => {
-            if (variant === 'logout' && event.key === 'Escape' && !dialog.classList.contains('is-logging-out')) {
+            if ((variant === 'logout' || variant === 'duplicate') &&
+                event.key === 'Escape' &&
+                !dialog.classList.contains('is-logging-out')) {
                 close(false);
             }
         };
@@ -91,6 +99,36 @@ function showConfirmDialog(message, title = 'Confirmer l’action', acceptLabel 
         document.addEventListener('keydown', onKeyDown);
         (variant === 'logout' ? accept : cancel).focus();
     });
+}
+
+async function isAnimeInKuroliste(aniListId) {
+    const username = sessionStorage.getItem('username');
+    if (!username) throw new Error('Impossible de déterminer le compte de la Kuroliste.');
+
+    const { data, error } = await Supabase
+        .from(`list${username.toLowerCase()}`)
+        .select('id')
+        .eq('idanime', aniListId)
+        .limit(1);
+    if (error) throw error;
+    return Boolean(data?.length);
+}
+
+async function updateKurolisteAddButton(button, aniListId, isCurrent, addLabel) {
+    button.disabled = true;
+    button.textContent = 'Vérification…';
+    try {
+        const alreadyAdded = await isAnimeInKuroliste(aniListId);
+        if (!isCurrent()) return;
+        button.disabled = alreadyAdded;
+        button.textContent = alreadyAdded ? 'Dans ta liste' : addLabel;
+    } catch (error) {
+        if (!isCurrent()) return;
+        console.error('Impossible de vérifier la présence dans la Kuroliste :', error);
+        showAppToast('Impossible de vérifier si cet anime est déjà dans ta liste.', 'error');
+        button.disabled = false;
+        button.textContent = addLabel;
+    }
 }
 
 async function addAnime(idanime, urlimg, nomnative, nomromaji, nomenglish, languepref, statut, nbsaisons, nbepisodes, saisonencours, epencours, detailsepsaison, checkboxsf, duree, favori, flag, caption = '') {
@@ -143,7 +181,8 @@ async function addAnime(idanime, urlimg, nomnative, nomromaji, nomenglish, langu
         const shouldContinue = await showConfirmDialog(
             `« ${nompref} » est déjà présent dans ta liste. Voulais-tu vraiment l’ajouter une seconde fois ?`,
             'Doublon détecté',
-            'Ajouter quand même'
+            'Ajouter quand même',
+            'duplicate'
         );
         if (!shouldContinue) {
             showAppToast('Ajout annulé.', 'info');
@@ -1052,8 +1091,8 @@ function showCardInfo({ id, aniListId, img, title, nativeTitle, romajiTitle, sai
         if (editButton) editButton.classList.add('hidden');
         if (progressButton) progressButton.classList.add('hidden');
         if (finishButton) finishButton.classList.add('hidden');
-        addButton.disabled = false;
-            addButton.textContent = 'Ajouter à la liste';
+        addButton.disabled = true;
+        addButton.textContent = 'Vérification…';
         addButton.onclick = async () => {
             addButton.disabled = true;
             addButton.textContent = 'Ajout...';
@@ -1084,9 +1123,29 @@ function showCardInfo({ id, aniListId, img, title, nativeTitle, romajiTitle, sai
                 0,
                 searchData?.description || ''
             );
-            addButton.textContent = added ? 'Ajouté' : 'Réessayer';
-            addButton.disabled = false;
+            if (added) {
+                addButton.textContent = 'Dans ta liste';
+                addButton.disabled = true;
+            } else {
+                await updateKurolisteAddButton(
+                    addButton,
+                    mediaAniListId,
+                    () => requestId === cardInfoRequestId && !overlay.classList.contains('hidden'),
+                    'Ajouter à la liste'
+                );
+            }
         };
+        if (Number.isSafeInteger(mediaAniListId) && mediaAniListId > 0) {
+            updateKurolisteAddButton(
+                addButton,
+                mediaAniListId,
+                () => requestId === cardInfoRequestId && !overlay.classList.contains('hidden'),
+                'Ajouter à la liste'
+            );
+        } else {
+            addButton.disabled = false;
+            addButton.textContent = 'Ajouter à la liste';
+        }
         overlay.dataset.cardId = '';
     } else {
         if (addButton) addButton.classList.add('hidden');
@@ -2947,6 +3006,10 @@ function toggleKurocalFavorite(media) {
     if (kurocalCurrentMedia && String(kurocalCurrentMedia.id) === String(media.id)) {
         updateKurocalDetailFavoriteButton();
     }
+    showAppToast(
+        isFavorite ? 'Retiré des favoris Kurocal.' : 'Ajouté aux favoris Kurocal.',
+        'success'
+    );
 }
 
 function makeKurocalCard(media, meta, airing = null) {
@@ -3760,8 +3823,8 @@ function openKurocalDetail(media, airing = null) {
     }
 
     favoriteButton.onclick = () => toggleKurocalFavorite(media);
-    addButton.disabled = false;
-    addButton.textContent = 'Ajouter à la Kuroliste';
+    addButton.textContent = 'Vérification…';
+    addButton.disabled = true;
     addButton.onclick = async () => {
         addButton.disabled = true;
         addButton.textContent = 'Ajout…';
@@ -3786,17 +3849,34 @@ function openKurocalDetail(media, airing = null) {
                 0,
                 media.description || ''
             );
-            addButton.textContent = added ? 'Ajouté à la Kuroliste' : 'Réessayer';
+            if (added) {
+                addButton.textContent = 'Dans ta liste';
+                addButton.disabled = true;
+            } else {
+                await updateKurolisteAddButton(
+                    addButton,
+                    media.id,
+                    () => kurocalCurrentMedia && String(kurocalCurrentMedia.id) === String(media.id) &&
+                        document.getElementById('kurocalDetail')?.hidden === false,
+                    'Ajouter à la Kuroliste'
+                );
+            }
         } catch (error) {
             console.error('Impossible d’ajouter cet anime à la Kuroliste :', error);
             showAppToast('Impossible d’ajouter cet anime à la Kuroliste.', 'error');
             addButton.textContent = 'Réessayer';
-        } finally {
             addButton.disabled = false;
         }
     };
     updateKurocalDetailFavoriteButton();
     overlay.hidden = false;
+    updateKurolisteAddButton(
+        addButton,
+        media.id,
+        () => kurocalCurrentMedia && String(kurocalCurrentMedia.id) === String(media.id) &&
+            document.getElementById('kurocalDetail')?.hidden === false,
+        'Ajouter à la Kuroliste'
+    );
 }
 
 function closeKurocalDetail() {
@@ -3918,6 +3998,8 @@ function moveKurocalWeek(amount) {
     kurocalSlideDirection = amount > 0 ? 'next' : 'previous';
     renderKurocalWeekdays();
 }
+
+window.moveKurocalWeek = moveKurocalWeek;
 
 function swipeKurocalDay(amount) {
     if (!amount) return;

@@ -1969,8 +1969,18 @@ input:checked + .slider::before {
     box-shadow: 0 24px 60px rgba(0,0,0,.5);
 }
 
+.confirm-dialog.is-duplicate {
+    width: min(640px, 100%);
+    padding: 30px 36px;
+    border-radius: 26px;
+}
+
 .confirm-dialog-backdrop:not([hidden]) .confirm-dialog {
     animation: confirm-dialog-enter .24s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.confirm-dialog:not(.is-logout) .confirm-accept-icon {
+    display: none;
 }
 
 .confirm-dialog-icon {
@@ -2123,6 +2133,39 @@ input:checked + .slider::before {
 @media (max-width: 520px) {
     .confirm-dialog.is-logout {
         padding: 26px 20px;
+    }
+
+    .confirm-dialog.is-duplicate {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 24px 20px;
+        border-radius: 22px;
+    }
+
+    .confirm-dialog.is-duplicate h2 {
+        margin-top: 0;
+        font-size: 1.35rem;
+    }
+
+    .confirm-dialog.is-duplicate .confirm-dialog-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .confirm-dialog.is-duplicate .confirm-dialog-actions button {
+        width: 100%;
+        min-height: 54px;
+        padding: 13px 16px;
+    }
+
+    .confirm-dialog.is-duplicate #confirmAccept {
+        grid-row: 1;
+    }
+
+    .confirm-dialog.is-duplicate #confirmCancel {
+        grid-row: 2;
     }
 
     .card-info-panel{
@@ -2720,6 +2763,8 @@ body.kurocal-active > .add-anime-fab {
     border: 1px solid rgba(255,255,255,.08);
     border-radius: 20px;
     background: rgba(255,255,255,.035);
+    touch-action: pan-y;
+    user-select: none;
 }
 
 .kurocal-weekdays.slide-next {
